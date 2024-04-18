@@ -3,6 +3,8 @@
 
 src/CMakeFiles/app.dir/app.cpp.o: ../../include/line_searcher.hpp
 src/CMakeFiles/app.dir/app.cpp.o: ../../include/optimizer.hpp
+src/CMakeFiles/app.dir/app.cpp.o: ../../include/problem.hpp
+src/CMakeFiles/app.dir/app.cpp.o: ../../include/solver.hpp
 src/CMakeFiles/app.dir/app.cpp.o: ../../include/type_define.hpp
 src/CMakeFiles/app.dir/app.cpp.o: ../../third_party/eigen/Eigen/Cholesky
 src/CMakeFiles/app.dir/app.cpp.o: ../../third_party/eigen/Eigen/Core

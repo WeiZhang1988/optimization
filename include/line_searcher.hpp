@@ -27,14 +27,21 @@ class Base_Line_Searcher{
                      alpha_init_(_alpha_init),
                      stepsize_(_stepsize),
                      multiplier_(_multiplier),
-                     max_iter_num_(_max_iter_num) {
-    forward_backward();
-  }
-  void update_var(Eigen::VectorXd _var) {
+                     max_iter_num_(_max_iter_num) {}
+  void set_var(Eigen::VectorXd _var) {
     var_ = _var;
   }
-  void update_dir(Eigen::VectorXd _dir) {
+  void set_dir(Eigen::VectorXd _dir) {
     dir_ = _dir;
+  }
+  void set_obj_fun(ObjFun _obj_fun) {
+    obj_fun_ = _obj_fun;
+  }
+  void set_jac_fun(JacFun _jac_fun) {
+    jac_fun_ = _jac_fun;
+  }
+  void set_hes_fun(HesFun _hes_fun) {
+    hes_fun_ = _hes_fun;
   }
   virtual double search() = 0;
   protected:
@@ -89,9 +96,9 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
   };
   Exact_Line_Searcher(Eigen::VectorXd _var, \
                       Eigen::VectorXd _dir, \
-                      ObjFun _obj_fun, \
-                      JacFun _jac_fun, \
-                      HesFun _hes_fun, \
+                      ObjFun _obj_fun = nullptr, \
+                      JacFun _jac_fun = nullptr, \
+                      HesFun _hes_fun = nullptr, \
                       double _alpha_init  = 0.5, \
                       double _stepsize    = 1.0, \
                       double _multiplier = 1.0, \

@@ -17,14 +17,8 @@ class Base_Problem {
   Eigen::VectorXd get_var() {
     return var_;
   }
-  Eigen::VectorXd get_target() {
-    return target_;
-  }
   void set_var(Eigen::VectorXd _var) {
     var_ = _var;
-  }
-  void set_target(Eigen::VectorXd _target) {
-    target_ = _target;
   }
   virtual double obj_fun(Eigen::VectorXd _var)          = 0;
   virtual Eigen::VectorXd jac_fun(Eigen::VectorXd _var) = 0;
@@ -43,12 +37,12 @@ class QP_wo_Constraint : public Base_Problem {
                    weight_mat_(_weight_mat),
                    coe_vec_(_coe_vec) {}
   double obj_fun(Eigen::VectorXd _var) override {
-    return 0.5 * (_var - target_).transpose() * weight_mat_ * (_var - target_) + coe_vec_.transpose() * _var;
+    return 0.5 * double((_var - target_).transpose() * weight_mat_ * (_var - target_)) + double(coe_vec_.transpose() * _var);
   }
-  Eigen::VectorXd jac_fun(Eigen::VectorXd _var) {
+  Eigen::VectorXd jac_fun(Eigen::VectorXd _var) override {
     return weight_mat_ * (_var - target_) + coe_vec_;
   }
-  Eigen::MatrixXd hes_fun(Eigen::VectorXd _var) {
+  Eigen::MatrixXd hes_fun(Eigen::VectorXd _var) override {
     return weight_mat_;
   }
   protected:

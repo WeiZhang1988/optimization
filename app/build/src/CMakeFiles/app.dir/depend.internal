@@ -4,6 +4,8 @@
 src/CMakeFiles/app.dir/app.cpp.o
  ../../include/line_searcher.hpp
  ../../include/optimizer.hpp
+ ../../include/problem.hpp
+ ../../include/solver.hpp
  ../../include/type_define.hpp
  ../../third_party/eigen/Eigen/Cholesky
  ../../third_party/eigen/Eigen/Core
