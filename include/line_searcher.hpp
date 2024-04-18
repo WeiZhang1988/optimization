@@ -46,28 +46,21 @@ class Base_Line_Searcher{
   virtual double search() = 0;
   protected:
   void forward_backward() {
-    double alpha0 = alpha_init_;
-    double alpha1 = alpha_init_ + stepsize_;
-    double alpha2 = alpha0;
-    int iter_num = 0;
-    while(true) {
-      if (obj_fun_(var_ + alpha0 * dir_) < obj_fun_(var_ + (alpha1 + stepsize_) * dir_)) {
-        if (iter_num == 0) {
-          stepsize_ = -stepsize_;
-          alpha1 = alpha0 + stepsize_;
-          alpha2 = alpha1;
-        } else {
-          alpha_low_  = std::min(alpha1,alpha2);
-          alpha_high_ = std::max(alpha1,alpha2);
-          break;
-        }
-      } else {
-        stepsize_ = multiplier_ * stepsize_;
-        alpha2 = alpha0;
-        alpha0 = alpha1;
-        alpha1 += stepsize_;
+    if (std::abs(obj_fun_(var_ + alpha_init_ * dir_) - obj_fun_(var_ + (alpha_init_ + stepsize_) * dir_)) < 1e-6){
+      alpha_low_  = alpha_init_;
+      alpha_high_ = alpha_init_ + stepsize_;
+    } else if (obj_fun_(var_ + alpha_init_ * dir_) < obj_fun_(var_ + (alpha_init_ + stepsize_) * dir_)){
+      alpha_high_ = alpha_init_ + stepsize_;
+      while (obj_fun_(var_ + (alpha_init_ - multiplier_ * stepsize_) * dir_) < obj_fun_(var_ + alpha_init_ * dir_)){
+        multiplier_ += 1.0;
       }
-      iter_num++;
+      alpha_low_  = alpha_init_ - multiplier_ * stepsize_;
+    } else {
+      alpha_low_  = alpha_init_ + stepsize_;
+      do {
+        multiplier_ += 1.0;
+      } while (obj_fun_(var_ + (alpha_init_ + multiplier_ * stepsize_) * dir_) < obj_fun_(var_ + (alpha_init_ + stepsize_) * dir_));
+      alpha_high_ = alpha_init_ + multiplier_ * stepsize_;
     }
   }
   Eigen::VectorXd var_;
@@ -79,7 +72,7 @@ class Base_Line_Searcher{
   double stepsize_   = 1.0;
   double multiplier_ = 1.0;
   double alpha_low_  = 0.0;
-  double alpha_high_ = 1.0;
+  double alpha_high_ = 1e10;
   int max_iter_num_  = 100;
 };
 class Exact_Line_Searcher  : public Base_Line_Searcher{
@@ -103,7 +96,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
                       double _stepsize    = 1.0, \
                       double _multiplier = 1.0, \
                       int _max_iter_num  = 100, \
-                      double _epsilon    = 1e-6, \
+                      double _epsilon    = 0.1, \
                       Search_Type _search_type = Search_Type::Bisection) :
                       Base_Line_Searcher(_var, _dir, _obj_fun, _jac_fun, _hes_fun, _alpha_init, _stepsize, _multiplier, _max_iter_num), 
                       epsilon_(_epsilon),
@@ -135,7 +128,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
     double obj = obj_fun_(var_);
     Eigen::VectorXd jac = jac_fun_(var_);
     int iter_num = 0;
-    while (std::abs(alpha_high_ - alpha_low_) > epsilon_ && iter_num < max_iter_num_){
+    while (alpha_high_ - alpha_low_ > epsilon_ && iter_num < max_iter_num_){
       iter_num++;
       double alpha_mid = (alpha_low_ + alpha_high_) / 2.0;
       if (obj_fun_(var_ + alpha_mid * dir_) < (obj + jac.dot(dir_) * alpha_mid)) {
@@ -144,7 +137,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
         alpha_high_ = alpha_mid;
       }
     }
-    return (alpha_low_ + alpha_high_) / 2.0;
+    return std::max(0.0, (alpha_low_ + alpha_high_) / 2.0);
   }
   double search_by_golden_section() {
     forward_backward();
@@ -164,7 +157,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
         alpha_high_try = alpha_low_ + (alpha_high_ - alpha_low_) * golden_ratio;
       }
     }
-    return (alpha_low_ + alpha_high_) / 2.0;
+    return std::max(0.0, (alpha_low_ + alpha_high_) / 2.0);
   }
   double search_by_Fibonacci() {
     forward_backward();
@@ -187,7 +180,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
         alpha_high_try = alpha_low_ + (alpha_high_ - alpha_low_) * (double)fib[max_iter_num_-i-1]/(double)fib[max_iter_num_-i];
       }
     }
-    return (alpha_low_ + alpha_high_) / 2.0;
+    return std::max(0.0, (alpha_low_ + alpha_high_) / 2.0);
   }
   double search_by_Newton() {
     Eigen::VectorXd jac = jac_fun_(var_);
@@ -202,7 +195,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
       alpha_delta = dir.dot(jac_fun_(var_ + alpha * dir)) / (dir.transpose() * hes_fun_(var_ + alpha * dir) * dir);
       alpha -= alpha_delta;
     }
-    return alpha;
+    return std::max(0.0, alpha);
   }
   double search_by_secant() {
     forward_backward();
@@ -217,7 +210,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
       alpha_pre = alpha;
       alpha -= alpha_delta;
     }
-    return alpha;
+    return std::max(0.0, alpha);
   }
   double search_by_2pt_quad_interpo() {
     forward_backward();
@@ -232,12 +225,12 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
       alpha_pre = alpha;
       alpha -= alpha_delta;
     }
-    return alpha;
+    return std::max(0.0, alpha);
   }
   double search_by_3pt_quad_interpo() {
     forward_backward();
     double alpha_mid = 0.5 * (alpha_high_ + alpha_low_);
-    return 0.5 * (alpha_mid + alpha_low_) + 0.5 * (obj_fun_(var_ + alpha_low_ * dir_) - obj_fun_(var_ + alpha_mid * dir_)) * (alpha_mid - alpha_high_) * (alpha_high_ - alpha_low_) / ((alpha_mid - alpha_high_) * obj_fun_(var_ + alpha_low_ * dir_) + (alpha_high_ - alpha_low_) * obj_fun_(var_ + alpha_mid * dir_) + (alpha_low_ - alpha_mid) * obj_fun_(var_ + alpha_high_ * dir_));
+    return std::max(0.0, 0.5 * (alpha_mid + alpha_low_) + 0.5 * (obj_fun_(var_ + alpha_low_ * dir_) - obj_fun_(var_ + alpha_mid * dir_)) * (alpha_mid - alpha_high_) * (alpha_high_ - alpha_low_) / ((alpha_mid - alpha_high_) * obj_fun_(var_ + alpha_low_ * dir_) + (alpha_high_ - alpha_low_) * obj_fun_(var_ + alpha_mid * dir_) + (alpha_low_ - alpha_mid) * obj_fun_(var_ + alpha_high_ * dir_)));
   }
   double search_by_2pt_cubic_interpo() {
     forward_backward();
@@ -259,10 +252,10 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
         alpha_low_  = alpha;
       }
     }
-    return alpha;
+    return std::max(0.0, alpha);
   }
   protected:
-  double epsilon_    = 1e-6;
+  double epsilon_    = 0.1;
   Search_Type search_type_ = Search_Type::Bisection; 
 };
 class InExact_Line_Searcher : public Base_Line_Searcher {
@@ -314,7 +307,7 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
       } else if (obj_alpha < obj_zero + sigma_ * jac_zero * alpha){
         alpha_high_ = alpha;
       }
-      alpha = 0.5 * (alpha_low_ + alpha_high_);
+      alpha = std::max(0.0, 0.5 * (alpha_low_ + alpha_high_));
     }
     return alpha;
   }
@@ -337,7 +330,7 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
       obj_alpha = obj_fun_(var_ + alpha * dir_);
       jac_alpha = dir_.dot(jac_fun_(var_ + alpha * dir_));
     }
-    return alpha;
+    return std::max(0.0, alpha);
   }
   double search_by_strong_wolfe_powell() {
     forward_backward();
@@ -358,7 +351,7 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
       obj_alpha = obj_fun_(var_ + alpha * dir_);
       jac_alpha = dir_.dot(jac_fun_(var_ + alpha * dir_));
     }
-    return alpha;
+    return std::max(0.0, alpha);
   }
   protected:
   double rho_        = 0.1;

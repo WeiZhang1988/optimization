@@ -70,6 +70,9 @@
     "typeinfo": "cpp",
     "variant": "cpp",
     "bit": "cpp",
-    "core": "cpp"
+    "core": "cpp",
+    "*.inc": "cpp",
+    "cassert": "cpp",
+    "*.ipp": "cpp"
   }
 }

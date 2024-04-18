@@ -39,18 +39,19 @@ class Optimizer{
   }
   Eigen::VectorXd optimize() {
     int iter_num = 0;
-    while ((var_ - var_pre_).lpNorm<1>() > epsilon_ && \
+    while (/*(var_ - var_pre_).lpNorm<1>() > epsilon_ && \
            (std::abs(obj_fun_(var_) - obj_fun_(var_pre_)) > epsilon_) && \
-           jac_fun_(var_).lpNorm<1>() > epsilon_ && \
+           jac_fun_(var_).lpNorm<1>() > epsilon_ && \*/
            iter_num < max_iter_num_) {
       iter_num++;
       var_pre_ = var_;
       sptr_solver_->set_var(var_);
-      Eigen::VectorXd dir = sptr_solver_->solve();
+      sptr_solver_->set_alpha(alpha_);
+      dir_ = sptr_solver_->solve();
       sptr_line_searcher_->set_var(var_);
-      sptr_line_searcher_->set_dir(dir);
+      sptr_line_searcher_->set_dir(dir_);
       alpha_ = sptr_line_searcher_->search();
-      var_ += (alpha_ * dir);
+      var_ += (alpha_ * dir_);
       vars_.push_back(var_);
     }
     return var_;
@@ -65,6 +66,7 @@ class Optimizer{
   double epsilon_ = 1e-10;
   int max_iter_num_ = 1000;
   double alpha_;
+  Eigen::VectorXd dir_;
   std::vector<Eigen::VectorXd> vars_;
   Eigen::VectorXd var_, var_pre_;
   ObjFun obj_fun_;
