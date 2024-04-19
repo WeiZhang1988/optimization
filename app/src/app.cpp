@@ -8,7 +8,7 @@
 using namespace opt;
 
 int main(int argc, char **argv) {
-  int max_iter_num = 1000;
+  int max_iter_num = 100;
   Eigen::VectorXd var = Eigen::VectorXd::Random(10) * 100;
   std::cout<<"varT "<<var.transpose()<<std::endl;
   Eigen::VectorXd target = Eigen::VectorXd::Random(10);
