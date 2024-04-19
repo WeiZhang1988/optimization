@@ -18,7 +18,7 @@ class Base_Line_Searcher{
                      double _alpha_init = 0.5, \
                      double _stepsize   = 1.0, \
                      double _multiplier = 1.0, \
-                     int _max_iter_num = 100) : 
+                     int _max_iter_num = 1000) : 
                      var_(_var),
                      dir_(_dir),
                      obj_fun_(_obj_fun), 
@@ -73,7 +73,7 @@ class Base_Line_Searcher{
   double multiplier_ = 1.0;
   double alpha_low_  = 0.0;
   double alpha_high_ = 1e10;
-  int max_iter_num_  = 100;
+  int max_iter_num_  = 1000;
 };
 class Exact_Line_Searcher  : public Base_Line_Searcher{
   public:
@@ -95,8 +95,8 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
                       double _alpha_init  = 0.5, \
                       double _stepsize    = 1.0, \
                       double _multiplier = 1.0, \
-                      int _max_iter_num  = 100, \
-                      double _epsilon    = 0.1, \
+                      int _max_iter_num  = 1000, \
+                      double _epsilon    = 1e-4, \
                       Search_Type _search_type = Search_Type::Bisection) :
                       Base_Line_Searcher(_var, _dir, _obj_fun, _jac_fun, _hes_fun, _alpha_init, _stepsize, _multiplier, _max_iter_num), 
                       epsilon_(_epsilon),
@@ -127,21 +127,22 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
     forward_backward();
     double obj = obj_fun_(var_);
     Eigen::VectorXd jac = jac_fun_(var_);
+    double alpha_mid = 0.5 * (alpha_low_ + alpha_high_);
     int iter_num = 0;
-    while (alpha_high_ - alpha_low_ > epsilon_ && iter_num < max_iter_num_){
+    while (std::abs(dir_.dot(jac_fun_(var_ + alpha_mid * dir_))) > epsilon_ && (alpha_high_ - alpha_low_) > epsilon_ && iter_num < max_iter_num_){
       iter_num++;
-      double alpha_mid = (alpha_low_ + alpha_high_) / 2.0;
-      if (obj_fun_(var_ + alpha_mid * dir_) < (obj + jac.dot(dir_) * alpha_mid)) {
-        alpha_low_ = alpha_mid;
-      } else {
+      if (dir_.dot(jac_fun_(var_ + alpha_mid * dir_)) > 0) {
         alpha_high_ = alpha_mid;
+      } else {
+        alpha_low_ = alpha_mid;
       }
+      alpha_mid = 0.5 * (alpha_low_ + alpha_high_);
     }
-    return std::max(0.0, (alpha_low_ + alpha_high_) / 2.0);
+    return std::max(0.0, 0.5 * (alpha_low_ + alpha_high_));
   }
   double search_by_golden_section() {
     forward_backward();
-    double golden_ratio   = (std::sqrt(5.0) - 1.0) / 2.0;
+    double golden_ratio   = 0.5 * (std::sqrt(5.0) - 1.0);
     double alpha_low_try  = alpha_high_ - (alpha_high_ - alpha_low_) * golden_ratio;
     double alpha_high_try = alpha_low_  + (alpha_high_ - alpha_low_) * golden_ratio;
     int iter_num = 0;
@@ -157,7 +158,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
         alpha_high_try = alpha_low_ + (alpha_high_ - alpha_low_) * golden_ratio;
       }
     }
-    return std::max(0.0, (alpha_low_ + alpha_high_) / 2.0);
+    return std::max(0.0, 0.5 * (alpha_low_ + alpha_high_));
   }
   double search_by_Fibonacci() {
     forward_backward();
@@ -180,7 +181,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
         alpha_high_try = alpha_low_ + (alpha_high_ - alpha_low_) * (double)fib[max_iter_num_-i-1]/(double)fib[max_iter_num_-i];
       }
     }
-    return std::max(0.0, (alpha_low_ + alpha_high_) / 2.0);
+    return std::max(0.0, 0.5 * (alpha_low_ + alpha_high_));
   }
   double search_by_Newton() {
     Eigen::VectorXd jac = jac_fun_(var_);
@@ -255,7 +256,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
     return std::max(0.0, alpha);
   }
   protected:
-  double epsilon_    = 0.1;
+  double epsilon_    = 1e-4;
   Search_Type search_type_ = Search_Type::Bisection; 
 };
 class InExact_Line_Searcher : public Base_Line_Searcher {
@@ -273,7 +274,7 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
                         double _alpha_init = 0.5, \
                         double _stepsize   = 1.0, \
                         double _multiplier = 1.0, \
-                        int _max_iter_num  = 100, \
+                        int _max_iter_num  = 1000, \
                         double _rho        = 0.1, \
                         double _sigma      = 0.4, \
                         Search_Type _search_type = Search_Type::Armijo_goldstein) :
@@ -303,9 +304,9 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
     while ((obj_alpha > obj_zero + rho_ * jac_zero * alpha || obj_alpha < obj_zero + sigma_ * jac_zero * alpha) && iter_num < max_iter_num_){
       iter_num++;
       if (obj_alpha > obj_zero + rho_ * jac_zero * alpha){
-        alpha_low_  = alpha;
+        alpha_high_  = alpha;
       } else if (obj_alpha < obj_zero + sigma_ * jac_zero * alpha){
-        alpha_high_ = alpha;
+        alpha_low_ = alpha;
       }
       alpha = std::max(0.0, 0.5 * (alpha_low_ + alpha_high_));
     }
@@ -319,12 +320,12 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
     double obj_alpha = obj_fun_(var_ + alpha * dir_);
     double jac_alpha = dir_.dot(jac_fun_(var_ + alpha * dir_));
     int iter_num = 0;
-    while ((obj_alpha > obj_zero + rho_ * jac_zero * alpha || jac_alpha < sigma_ * jac_zero) && iter_num < max_iter_num_){
+    while ((obj_alpha > obj_zero + rho_ * alpha * jac_zero || jac_alpha < sigma_ * jac_zero) && iter_num < max_iter_num_){
       iter_num++;
       if (obj_alpha > obj_zero + rho_ * jac_zero * alpha){
-        alpha_low_  = alpha;
+        alpha_high_  = alpha;
       } else if (jac_alpha < sigma_ * jac_zero){
-        alpha_high_ = alpha;
+        alpha_low_ = alpha;
       }
       alpha = 0.5 * (alpha_low_ + alpha_high_);
       obj_alpha = obj_fun_(var_ + alpha * dir_);
@@ -343,9 +344,9 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
     while ((obj_alpha > obj_zero + rho_ * jac_zero * alpha || std::abs(jac_alpha) > sigma_ * std::abs(jac_zero)) && iter_num < max_iter_num_){
       iter_num++;
       if (obj_alpha > obj_zero + rho_ * jac_zero * alpha){
-        alpha_low_  = alpha;
+        alpha_high_  = alpha;
       } else if (std::abs(jac_alpha) > sigma_ * std::abs(jac_zero)){
-        alpha_high_ = alpha;
+        alpha_low_ = alpha;
       }
       alpha = 0.5 * (alpha_low_ + alpha_high_);
       obj_alpha = obj_fun_(var_ + alpha * dir_);

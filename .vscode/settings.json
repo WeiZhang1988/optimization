@@ -73,6 +73,7 @@
     "core": "cpp",
     "*.inc": "cpp",
     "cassert": "cpp",
-    "*.ipp": "cpp"
+    "*.ipp": "cpp",
+    "alignedvector3": "cpp"
   }
 }

@@ -38,17 +38,22 @@ class Optimizer{
     _sptr_solver->set_hes_fun(hes_fun_);
   }
   Eigen::VectorXd optimize() {
-    int iter_num = 0;
+    dir_ = -jac_fun_(var_);
+    iter_num_ = 0;
     while (/*(var_ - var_pre_).lpNorm<1>() > epsilon_ && \
            (std::abs(obj_fun_(var_) - obj_fun_(var_pre_)) > epsilon_) && \
            jac_fun_(var_).lpNorm<1>() > epsilon_ && \*/
-           iter_num < max_iter_num_) {
-      iter_num++;
+           iter_num_ < max_iter_num_) {
+      iter_num_++;
       var_pre_ = var_;
       sptr_solver_->set_var(var_);
       sptr_solver_->set_alpha(alpha_);
       dir_ = sptr_solver_->solve();
       sptr_line_searcher_->set_var(var_);
+      sptr_line_searcher_->set_dir(dir_);
+      alpha_ = sptr_line_searcher_->search();
+      sptr_solver_->set_alpha(alpha_);
+      dir_ = sptr_solver_->solve();
       sptr_line_searcher_->set_dir(dir_);
       alpha_ = sptr_line_searcher_->search();
       var_ += (alpha_ * dir_);
@@ -59,13 +64,17 @@ class Optimizer{
   std::vector<Eigen::VectorXd> get_vars() {
     return vars_;
   }
+  int get_iter_num() {
+    return iter_num_;
+  }
   protected:
   std::shared_ptr<Base_Problem> sptr_problem_;
   std::shared_ptr<Base_Line_Searcher> sptr_line_searcher_;
   std::shared_ptr<Base_Solver> sptr_solver_;
   double epsilon_ = 1e-10;
   int max_iter_num_ = 1000;
-  double alpha_;
+  int iter_num_ = 0;
+  double alpha_ = 1.0;
   Eigen::VectorXd dir_;
   std::vector<Eigen::VectorXd> vars_;
   Eigen::VectorXd var_, var_pre_;
