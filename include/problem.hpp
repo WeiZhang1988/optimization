@@ -22,10 +22,11 @@ class Base_Problem {
   }
   virtual double obj_fun(Eigen::VectorXd _var)          = 0;
   virtual Eigen::VectorXd jac_fun(Eigen::VectorXd _var) = 0;
-  virtual Eigen::MatrixXd hes_fun(Eigen::VectorXd _var) {}
-  virtual Eigen::VectorXd eq_cons(Eigen::VectorXd _var) {}
-  virtual Eigen::VectorXd ieq_cons(Eigen::VectorXd _var){}
-  virtual bool ending_condition() = 0;
+  virtual Eigen::MatrixXd hes_fun(Eigen::VectorXd _var) {return Eigen::MatrixXd::Identity(1,1);}
+  virtual Eigen::VectorXd eq_cons(Eigen::VectorXd _var) {return Eigen::VectorXd::Zero(1);}
+  virtual Eigen::VectorXd ieq_cons(Eigen::VectorXd _var){return Eigen::VectorXd::Zero(1);}
+  virtual Eigen::MatrixXd jac_eq_cons(Eigen::VectorXd _var)  {return Eigen::MatrixXd::Identity(1,1);}
+  virtual Eigen::MatrixXd jac_ieq_cons(Eigen::VectorXd _var) {return Eigen::MatrixXd::Identity(1,1);}
   protected:
   Eigen::VectorXd var_;
   Eigen::VectorXd target_;
@@ -71,10 +72,20 @@ class QP_w_Constraint : public Base_Problem {
     return weight_mat_;
   }
   Eigen::VectorXd eq_cons(Eigen::VectorXd _var) override {
-
+    Eigen::VectorXd eq_value(1);
+    eq_value << _var(0) * _var(0) + 2 * _var(0) - _var(1);
+    return eq_value;
   }
   Eigen::VectorXd ieq_cons(Eigen::VectorXd _var) override {
-
+    return Eigen::VectorXd::Zero(1);
+  }
+  Eigen::MatrixXd jac_eq_cons(Eigen::VectorXd _var) override  {
+    Eigen::MatrixXd jac_eq_value(2,1);
+    jac_eq_value << 2 * _var(0) + 2, -1;
+    return jac_eq_value;
+  }
+  Eigen::MatrixXd jac_ieq_cons(Eigen::VectorXd _var) override {
+    return Eigen::MatrixXd::Zero(2,1);
   }
   protected:
   Eigen::MatrixXd weight_mat_;

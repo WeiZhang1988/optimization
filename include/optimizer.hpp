@@ -22,42 +22,48 @@ class Optimizer{
             sptr_problem_(_sptr_problem), 
             sptr_line_searcher_(_sptr_line_searcher),
             sptr_solver_(_sptr_solver),
-            epsilon_(_epsilon),
             max_iter_num_(_max_iter_num) {
     var_ = _sptr_problem->get_var();
     var_pre_ = Eigen::VectorXd::Ones(var_.size()) * std::numeric_limits<double>::max() * 0.5;
     vars_.push_back(var_);
-    obj_fun_ = std::bind(&Base_Problem::obj_fun,sptr_problem_,std::placeholders::_1);
-    jac_fun_ = std::bind(&Base_Problem::jac_fun,sptr_problem_,std::placeholders::_1);
-    hes_fun_ = std::bind(&Base_Problem::hes_fun,sptr_problem_,std::placeholders::_1);
+    obj_fun_      = std::bind(&Base_Problem::obj_fun,sptr_problem_,std::placeholders::_1);
+    jac_fun_      = std::bind(&Base_Problem::jac_fun,sptr_problem_,std::placeholders::_1);
+    hes_fun_      = std::bind(&Base_Problem::hes_fun,sptr_problem_,std::placeholders::_1);
+    eq_cons_      = std::bind(&Base_Problem::eq_cons,sptr_problem_,std::placeholders::_1);    
+    ieq_cons_     = std::bind(&Base_Problem::ieq_cons,sptr_problem_,std::placeholders::_1);  
+    jac_eq_cons_  = std::bind(&Base_Problem::jac_eq_cons,sptr_problem_,std::placeholders::_1); 
+    jac_ieq_cons_ = std::bind(&Base_Problem::jac_ieq_cons,sptr_problem_,std::placeholders::_1);
     _sptr_line_searcher->set_obj_fun(obj_fun_);
     _sptr_line_searcher->set_jac_fun(jac_fun_);
     _sptr_line_searcher->set_hes_fun(hes_fun_);
     _sptr_solver->set_obj_fun(obj_fun_);
     _sptr_solver->set_jac_fun(jac_fun_);
     _sptr_solver->set_hes_fun(hes_fun_);
+    _sptr_solver->set_eq_cons(eq_cons_);
+    _sptr_solver->set_ieq_cons(ieq_cons_);
+    _sptr_solver->set_jac_eq_cons(jac_eq_cons_);
+    _sptr_solver->set_jac_ieq_cons(jac_ieq_cons_);
   }
   Eigen::VectorXd optimize() {
     dir_ = -jac_fun_(var_);
+    sptr_solver_->set_var(var_);
+    sptr_line_searcher_->set_var(var_);
     iter_num_ = 0;
-    while (/*(var_ - var_pre_).lpNorm<1>() > epsilon_ && \
-           (std::abs(obj_fun_(var_) - obj_fun_(var_pre_)) > epsilon_) && \
-           jac_fun_(var_).lpNorm<1>() > epsilon_ && \*/
+    while (!sptr_solver_->ending_condition() &&
            iter_num_ < max_iter_num_) {
       iter_num_++;
       var_pre_ = var_;
-      sptr_solver_->set_var(var_);
       sptr_solver_->set_alpha(alpha_);
       dir_ = sptr_solver_->solve();
-      sptr_line_searcher_->set_var(var_);
       sptr_line_searcher_->set_dir(dir_);
       alpha_ = sptr_line_searcher_->search();
-      sptr_solver_->set_alpha(alpha_);
-      dir_ = sptr_solver_->solve();
       sptr_line_searcher_->set_dir(dir_);
       alpha_ = sptr_line_searcher_->search();
       var_ += (alpha_ * dir_);
       vars_.push_back(var_);
+      sptr_solver_->set_var(var_);
+      sptr_solver_->update_params();
+      sptr_line_searcher_->set_var(var_);
     }
     return var_;
   }
@@ -71,7 +77,6 @@ class Optimizer{
   std::shared_ptr<Base_Problem> sptr_problem_;
   std::shared_ptr<Base_Line_Searcher> sptr_line_searcher_;
   std::shared_ptr<Base_Solver> sptr_solver_;
-  double epsilon_ = 1e-10;
   int max_iter_num_ = 1000;
   int iter_num_ = 0;
   double alpha_ = 1.0;
@@ -81,6 +86,10 @@ class Optimizer{
   ObjFun obj_fun_;
   JacFun jac_fun_;
   HesFun hes_fun_;
+  ConsFun eq_cons_;     
+  ConsFun ieq_cons_;    
+  JacCons jac_eq_cons_;
+  JacCons jac_ieq_cons_;
 };
 } //namespace opt
 #endif //OPTIMIZER_HPP

@@ -15,10 +15,16 @@ namespace opt{
 class Base_Solver{
   public:
   Base_Solver(Eigen::VectorXd _var, \
-              ObjFun _obj_fun = nullptr, \
-              JacFun _jac_fun = nullptr, \
-              HesFun _hes_fun = nullptr) : 
+              double  _epsilon, \
+              ObjFun  _obj_fun      = nullptr, \
+              JacFun  _jac_fun      = nullptr, \
+              HesFun  _hes_fun      = nullptr, \
+              ConsFun _eq_cons      = nullptr, \
+              ConsFun _ieq_cons     = nullptr, \
+              JacCons _jac_eq_cons  = nullptr, \
+              JacCons _jac_ieq_cons = nullptr) : 
               var_(_var), 
+              epsilon_(_epsilon), 
               obj_fun_(_obj_fun),
               jac_fun_(_jac_fun),
               hes_fun_(_hes_fun) {}
@@ -37,21 +43,44 @@ class Base_Solver{
   void set_hes_fun(HesFun _hes_fun) {
     hes_fun_ = _hes_fun;
   }
+  void set_eq_cons(ConsFun _eq_cons) {
+    eq_cons_ = _eq_cons;
+  }
+  void set_ieq_cons(ConsFun _ieq_cons) {
+    ieq_cons_ = _ieq_cons;
+  }
+  void set_jac_eq_cons(JacCons _jac_eq_cons) {
+    jac_eq_cons_ = _jac_eq_cons;
+  }
+  void set_jac_ieq_cons(JacCons _jac_ieq_cons) {
+    jac_ieq_cons_ = _jac_ieq_cons;
+  }
+  virtual void update_params() {}
+  virtual bool ending_condition() {
+    return false;
+  }
   virtual Eigen::VectorXd solve() = 0;
   protected:
   Eigen::VectorXd var_;
   ObjFun obj_fun_;
   JacFun jac_fun_;
   HesFun hes_fun_;
+  ConsFun eq_cons_;     
+  ConsFun ieq_cons_;    
+  JacCons jac_eq_cons_;
+  JacCons jac_ieq_cons_;
   double alpha_;
+  double epsilon_ = 1e-10;
 };
 class Gradient_Descent_Solver : public Base_Solver{
   public:
   Gradient_Descent_Solver(Eigen::VectorXd _var, \
+                          double _epsilon, \
                           ObjFun _obj_fun = nullptr, \
                           JacFun _jac_fun = nullptr, \
                           HesFun _hes_fun = nullptr) :
                           Base_Solver(_var, \
+                                      _epsilon, \
                                       _obj_fun, \
                                       _jac_fun, \
                                       _hes_fun) {}
@@ -63,10 +92,12 @@ class Gradient_Descent_Solver : public Base_Solver{
 class Newton_Solver : public Base_Solver{
   public:
   Newton_Solver(Eigen::VectorXd _var, \
+                double _epsilon, \
                 ObjFun _obj_fun = nullptr, \
                 JacFun _jac_fun = nullptr, \
                 HesFun _hes_fun = nullptr) :
                 Base_Solver(_var, \
+                            _epsilon, \
                             _obj_fun, \
                             _jac_fun, \
                             _hes_fun) {}
@@ -79,10 +110,12 @@ class DFP_Solver : public Base_Solver{
   public:
   DFP_Solver(Eigen::VectorXd _var, \
              Eigen::MatrixXd _hes, \
+             double _epsilon, \
              ObjFun _obj_fun = nullptr, \
              JacFun _jac_fun = nullptr, \
              HesFun _hes_fun = nullptr) :
              Base_Solver(_var, \
+                        _epsilon, \
                          _obj_fun, \
                          _jac_fun, \
                          _hes_fun),
@@ -102,10 +135,12 @@ class BFGS_Solver : public Base_Solver{
   public:
   BFGS_Solver(Eigen::VectorXd _var, \
               Eigen::MatrixXd _hes, \
+              double _epsilon, \
               ObjFun _obj_fun = nullptr, \
               JacFun _jac_fun = nullptr, \
               HesFun _hes_fun = nullptr) :
               Base_Solver(_var, \
+                          _epsilon, \
                           _obj_fun, \
                           _jac_fun, \
                           _hes_fun),
@@ -124,11 +159,13 @@ class BFGS_Solver : public Base_Solver{
 class LBFGS_Solver : public Base_Solver{
   public:
   LBFGS_Solver(Eigen::VectorXd _var, \
+               double _epsilon, \
                int  _storage_size, \
                ObjFun _obj_fun = nullptr, \
                JacFun _jac_fun = nullptr, \
                HesFun _hes_fun = nullptr) :
                Base_Solver(_var, \
+                           _epsilon, \
                            _obj_fun, \
                            _jac_fun, \
                            _hes_fun),
@@ -168,11 +205,13 @@ class Conjugate_Gradient_Solver : public Base_Solver{
     Powell
   };
   Conjugate_Gradient_Solver(Eigen::VectorXd _var, \
+                            double _epsilon, \
                             ObjFun _obj_fun = nullptr, \
                             JacFun _jac_fun = nullptr, \
                             HesFun _hes_fun = nullptr, \
                             Beta_Type _beta_type = Beta_Type::Hestenes_stiefel) :
                             Base_Solver(_var, \
+                                        _epsilon, \
                                         _obj_fun, \
                                         _jac_fun, \
                                         _hes_fun),
@@ -233,6 +272,94 @@ class Conjugate_Gradient_Solver : public Base_Solver{
   }
   double beta_ = 0.0;
   Beta_Type beta_type_ = Beta_Type::Hestenes_stiefel;
+};
+class Augmented_Lagrangian_Solver : public Base_Solver{
+  public:
+  Augmented_Lagrangian_Solver(Eigen::VectorXd _var, \
+                              double _epsilon, \
+                              Eigen::VectorXd _lambdas, \
+                              Eigen::VectorXd _mus, \
+                              double _sigma = 0.5, \
+                              double _enta  = 0.5, \
+                              double _beta1 = 0.3, \
+                              double _beta2 = 0.6, \
+                              double _rho   = 1.1, \
+                              ObjFun _obj_fun = nullptr, \
+                              JacFun _jac_fun = nullptr, \
+                              HesFun _hes_fun = nullptr, \
+                              ConsFun _eq_cons      = nullptr, \
+                              ConsFun _ieq_cons     = nullptr, \
+                              JacCons _jac_eq_cons  = nullptr, \
+                              JacCons _jac_ieq_cons = nullptr) :
+                              Base_Solver(_var, \
+                                          _epsilon, \
+                                          _obj_fun, \
+                                          _jac_fun, \
+                                          _hes_fun, \
+                                          _eq_cons, \
+                                          _ieq_cons, \
+                                          _jac_eq_cons, \
+                                          _jac_ieq_cons),  
+                              lambdas_(_lambdas),
+                              mus_(_mus),
+                              sigma_(_sigma),
+                              enta_(_enta),
+                              beta1_(_beta1),
+                              beta2_(_beta2),
+                              rho_(_rho){
+                                assert(sigma_>0 && \
+                                       epsilon_>0 && \
+                                       enta_>0 && \
+                                       beta1_>0 && \
+                                       beta2_>0 && \
+                                       beta1_<1 && \
+                                       beta2_<1 && \
+                                       beta1_<beta2_ && 
+                                       rho_>1);
+                                entk_ = 1 / sigma_;
+                                epsk_ = std::pow(sigma_, -beta1_);
+                              }
+  Eigen::VectorXd solve() override {
+    Eigen::VectorXd ieq_rlx_value = (mus_ / sigma_) + eq_cons_(var_);
+    ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
+    Eigen::MatrixXd jac_ieq_cons_value = jac_ieq_cons_(var_);
+    for (int i = 0; i < ieq_rlx_value.size(); i++) {
+      if (ieq_rlx_value(i) < 0) {
+        jac_ieq_cons_value.col(i).setZero();
+      }
+    }
+    jac_lag_ = (jac_fun_(var_) + \
+                (jac_eq_cons_(var_) * lambdas_) + \
+                sigma_ * jac_eq_cons_(var_) * eq_cons_(var_) + \
+                sigma_ * jac_ieq_cons_value * ieq_rlx_value);
+    return -jac_lag_;
+  }
+  virtual void update_params() {
+    Eigen::VectorXd ieq_rlx_value = ( - mus_ / sigma_);
+    Eigen::MatrixXd eq_cons_value = eq_cons_(var_);
+    cons_violation_ = std::sqrt(eq_cons_(var_).squaredNorm() + eq_cons_value.cwiseMax(ieq_rlx_value).squaredNorm());
+    if (cons_violation_ < epsk_){
+      if (cons_violation_ < epsilon_ && jac_lag_.norm() < enta_) {
+        ending_cond_ = true;
+      } else {
+        lambdas_ += sigma_ * eq_cons_(var_);
+        mus_ += sigma_ * ieq_cons_(var_);
+        mus_.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
+      }
+    } else {
+      sigma_ *= rho_;
+      entk_ = 1 / sigma_;
+      epsk_ = std::pow(sigma_, -beta1_);
+    }
+  }
+  bool ending_condition() {
+    return ending_cond_;
+  }
+  protected:
+  Eigen::VectorXd jac_lag_, lambdas_, mus_;
+  double sigma_, enta_, epsk_, entk_, beta1_, beta2_, rho_;
+  double cons_violation_;
+  bool ending_cond_ = false;
 };
 } //namespace opt
 #endif //SOLVER_HPP

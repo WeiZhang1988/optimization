@@ -11,6 +11,8 @@ namespace opt {
 typedef std::function<double(Eigen::VectorXd)> ObjFun;
 typedef std::function<Eigen::VectorXd(Eigen::VectorXd)> JacFun;
 typedef std::function<Eigen::MatrixXd(Eigen::VectorXd)> HesFun;
+typedef std::function<Eigen::VectorXd(Eigen::VectorXd)> ConsFun;
+typedef std::function<Eigen::MatrixXd(Eigen::VectorXd)> JacCons;
 template<typename DataType>
 class FixedQueue : public std::deque<DataType> {
   public:
