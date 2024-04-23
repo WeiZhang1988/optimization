@@ -279,11 +279,11 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
                               double _epsilon, \
                               Eigen::VectorXd _lambdas, \
                               Eigen::VectorXd _mus, \
-                              double _sigma = 0.5, \
-                              double _enta  = 0.5, \
+                              double _sigma = 1.0, \
+                              double _enta  = 1e-6, \
                               double _beta1 = 0.3, \
                               double _beta2 = 0.6, \
-                              double _rho   = 1.1, \
+                              double _rho   = 2.0, \
                               ObjFun _obj_fun = nullptr, \
                               JacFun _jac_fun = nullptr, \
                               HesFun _hes_fun = nullptr, \
@@ -320,37 +320,43 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
                                 epsk_ = std::pow(sigma_, -beta1_);
                               }
   Eigen::VectorXd solve() override {
-    Eigen::VectorXd ieq_rlx_value = (mus_ / sigma_) + eq_cons_(var_);
-    ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
-    Eigen::MatrixXd jac_ieq_cons_value = jac_ieq_cons_(var_);
-    for (int i = 0; i < ieq_rlx_value.size(); i++) {
-      if (ieq_rlx_value(i) < 0) {
-        jac_ieq_cons_value.col(i).setZero();
-      }
-    }
+    // Eigen::VectorXd ieq_rlx_value = -((mus_ / sigma_) + ieq_cons_(var_));
+    // Eigen::MatrixXd jac_ieq_cons_value = jac_ieq_cons_(var_);
+    // for (int i = 0; i < ieq_rlx_value.size(); i++) {
+    //   if (ieq_rlx_value(i) < 0.0) {
+    //     jac_ieq_cons_value.col(i).setZero();
+    //   }
+    // }
+    // ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
     jac_lag_ = (jac_fun_(var_) + \
-                (jac_eq_cons_(var_) * lambdas_) + \
-                sigma_ * jac_eq_cons_(var_) * eq_cons_(var_) + \
-                sigma_ * jac_ieq_cons_value * ieq_rlx_value);
+                (jac_eq_cons_(var_) * (lambdas_ + sigma_ * eq_cons_(var_))) /*+ \
+                jac_ieq_cons_value * (mus_ + sigma_ * (ieq_cons_(var_) + ieq_rlx_value))*/);
+    Eigen::MatrixXd hes_lag_ = hes_fun_(var_) + jac_eq_cons_(var_) * sigma_ * jac_eq_cons_(var_).transpose();
+    var_ += (hes_lag_.template bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(-jac_lag_));
+    // cons_violation_ = std::sqrt(eq_cons_(var_).squaredNorm() + (ieq_cons_(var_).cwiseMax(-(mus_ / sigma_))).squaredNorm());
+    // if (cons_violation_ < epsk_){
+    //   if (cons_violation_ < epsilon_ && jac_lag_.norm() < enta_) {
+    //     break;
+    //   } else {
+    //     lambdas_ += sigma_ * eq_cons_(var_);
+    //     mus_ += sigma_ * ieq_cons_(var_);
+    //     mus_.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
+    //     entk_ /= sigma_;
+    //     epsk_ *= std::pow(sigma_,-beta2_);
+    //   }
+    // } else {
+    //   sigma_ *= rho_;
+    //   entk_ = 1 / sigma_;
+    //   epsk_ = std::pow(sigma_, -beta1_);
+    // }
+    lambdas_ += (sigma_ * eq_cons_(var_));
+    // mus_ += sigma_ * ieq_cons_(var_);
+    // mus_.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
+    sigma_ *= rho_;
     return -jac_lag_;
   }
-  virtual void update_params() {
-    Eigen::VectorXd ieq_rlx_value = ( - mus_ / sigma_);
-    Eigen::MatrixXd eq_cons_value = eq_cons_(var_);
-    cons_violation_ = std::sqrt(eq_cons_(var_).squaredNorm() + eq_cons_value.cwiseMax(ieq_rlx_value).squaredNorm());
-    if (cons_violation_ < epsk_){
-      if (cons_violation_ < epsilon_ && jac_lag_.norm() < enta_) {
-        ending_cond_ = true;
-      } else {
-        lambdas_ += sigma_ * eq_cons_(var_);
-        mus_ += sigma_ * ieq_cons_(var_);
-        mus_.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
-      }
-    } else {
-      sigma_ *= rho_;
-      entk_ = 1 / sigma_;
-      epsk_ = std::pow(sigma_, -beta1_);
-    }
+  void update_params() {
+    
   }
   bool ending_condition() {
     return ending_cond_;

@@ -44,25 +44,25 @@ class Optimizer{
     _sptr_solver->set_jac_eq_cons(jac_eq_cons_);
     _sptr_solver->set_jac_ieq_cons(jac_ieq_cons_);
   }
-  Eigen::VectorXd optimize() {
+  void init_optimize() {
     dir_ = -jac_fun_(var_);
     sptr_solver_->set_var(var_);
     sptr_line_searcher_->set_var(var_);
     iter_num_ = 0;
+  }
+  Eigen::VectorXd optimize() {
+    init_optimize();
     while (!sptr_solver_->ending_condition() &&
            iter_num_ < max_iter_num_) {
       iter_num_++;
       var_pre_ = var_;
+      sptr_line_searcher_->set_dir(dir_);
+      alpha_ = sptr_line_searcher_->search();
       sptr_solver_->set_alpha(alpha_);
       dir_ = sptr_solver_->solve();
-      sptr_line_searcher_->set_dir(dir_);
-      alpha_ = sptr_line_searcher_->search();
-      sptr_line_searcher_->set_dir(dir_);
-      alpha_ = sptr_line_searcher_->search();
       var_ += (alpha_ * dir_);
       vars_.push_back(var_);
       sptr_solver_->set_var(var_);
-      sptr_solver_->update_params();
       sptr_line_searcher_->set_var(var_);
     }
     return var_;
