@@ -33,8 +33,6 @@ type_define.hpp
 ../../include/type_define.hpp
 problem.hpp
 ../../include/problem.hpp
-line_searcher.hpp
-../../include/line_searcher.hpp
 solver.hpp
 ../../include/solver.hpp
 
@@ -67,6 +65,8 @@ Eigen/Dense
 -
 type_define.hpp
 ../../include/type_define.hpp
+line_searcher.hpp
+../../include/line_searcher.hpp
 
 ../../include/type_define.hpp
 mutex

@@ -8,19 +8,16 @@
 #include <Eigen/Dense>
 #include "type_define.hpp"
 #include "problem.hpp"
-#include "line_searcher.hpp"
 #include "solver.hpp"
 
 namespace opt{
 class Optimizer{
   public:
   Optimizer(std::shared_ptr<Base_Problem> _sptr_problem, \
-            std::shared_ptr<Base_Line_Searcher> _sptr_line_searcher, \
             std::shared_ptr<Base_Solver> _sptr_solver, 
             double _epsilon = 1e-10, \
             int _max_iter_num = 1000) : 
             sptr_problem_(_sptr_problem), 
-            sptr_line_searcher_(_sptr_line_searcher),
             sptr_solver_(_sptr_solver),
             max_iter_num_(_max_iter_num) {
     var_ = _sptr_problem->get_var();
@@ -33,9 +30,6 @@ class Optimizer{
     ieq_cons_     = std::bind(&Base_Problem::ieq_cons,sptr_problem_,std::placeholders::_1);  
     jac_eq_cons_  = std::bind(&Base_Problem::jac_eq_cons,sptr_problem_,std::placeholders::_1); 
     jac_ieq_cons_ = std::bind(&Base_Problem::jac_ieq_cons,sptr_problem_,std::placeholders::_1);
-    _sptr_line_searcher->set_obj_fun(obj_fun_);
-    _sptr_line_searcher->set_jac_fun(jac_fun_);
-    _sptr_line_searcher->set_hes_fun(hes_fun_);
     _sptr_solver->set_obj_fun(obj_fun_);
     _sptr_solver->set_jac_fun(jac_fun_);
     _sptr_solver->set_hes_fun(hes_fun_);
@@ -44,26 +38,16 @@ class Optimizer{
     _sptr_solver->set_jac_eq_cons(jac_eq_cons_);
     _sptr_solver->set_jac_ieq_cons(jac_ieq_cons_);
   }
-  void init_optimize() {
-    dir_ = -jac_fun_(var_);
-    sptr_solver_->set_var(var_);
-    sptr_line_searcher_->set_var(var_);
-    iter_num_ = 0;
-  }
   Eigen::VectorXd optimize() {
-    init_optimize();
+    sptr_solver_->init_for_solve();
+    iter_num_ = 0;
     while (!sptr_solver_->ending_condition() &&
            iter_num_ < max_iter_num_) {
       iter_num_++;
       var_pre_ = var_;
-      sptr_line_searcher_->set_dir(dir_);
-      alpha_ = sptr_line_searcher_->search();
-      sptr_solver_->set_alpha(alpha_);
-      dir_ = sptr_solver_->solve();
-      var_ += (alpha_ * dir_);
-      vars_.push_back(var_);
       sptr_solver_->set_var(var_);
-      sptr_line_searcher_->set_var(var_);
+      var_ = sptr_solver_->solve();
+      vars_.push_back(var_);
     }
     return var_;
   }
@@ -75,12 +59,10 @@ class Optimizer{
   }
   protected:
   std::shared_ptr<Base_Problem> sptr_problem_;
-  std::shared_ptr<Base_Line_Searcher> sptr_line_searcher_;
   std::shared_ptr<Base_Solver> sptr_solver_;
   int max_iter_num_ = 1000;
   int iter_num_ = 0;
   double alpha_ = 1.0;
-  Eigen::VectorXd dir_;
   std::vector<Eigen::VectorXd> vars_;
   Eigen::VectorXd var_, var_pre_;
   ObjFun obj_fun_;

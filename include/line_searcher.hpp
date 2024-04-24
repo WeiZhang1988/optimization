@@ -74,6 +74,7 @@ class Base_Line_Searcher{
   double alpha_low_  = 0.0;
   double alpha_high_ = 1e10;
   int max_iter_num_  = 1000;
+  double eps_ = 1e-10;
 };
 class Exact_Line_Searcher  : public Base_Line_Searcher{
   public:
@@ -138,7 +139,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
       }
       alpha_mid = 0.5 * (alpha_low_ + alpha_high_);
     }
-    return std::max(0.0, 0.5 * (alpha_low_ + alpha_high_));
+    return std::max(eps_, 0.5 * (alpha_low_ + alpha_high_));
   }
   double search_by_golden_section() {
     forward_backward();
@@ -158,7 +159,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
         alpha_high_try = alpha_low_ + (alpha_high_ - alpha_low_) * golden_ratio;
       }
     }
-    return std::max(0.0, 0.5 * (alpha_low_ + alpha_high_));
+    return std::max(eps_, 0.5 * (alpha_low_ + alpha_high_));
   }
   double search_by_Fibonacci() {
     forward_backward();
@@ -181,7 +182,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
         alpha_high_try = alpha_low_ + (alpha_high_ - alpha_low_) * (double)fib[max_iter_num_-i-1]/(double)fib[max_iter_num_-i];
       }
     }
-    return std::max(0.0, 0.5 * (alpha_low_ + alpha_high_));
+    return std::max(eps_, 0.5 * (alpha_low_ + alpha_high_));
   }
   double search_by_Newton() {
     Eigen::VectorXd jac = jac_fun_(var_);
@@ -196,7 +197,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
       alpha_delta = dir.dot(jac_fun_(var_ + alpha * dir)) / (dir.transpose() * hes_fun_(var_ + alpha * dir) * dir);
       alpha -= alpha_delta;
     }
-    return std::max(0.0, alpha);
+    return std::max(eps_, alpha);
   }
   double search_by_secant() {
     forward_backward();
@@ -211,7 +212,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
       alpha_pre = alpha;
       alpha -= alpha_delta;
     }
-    return std::max(0.0, alpha);
+    return std::max(eps_, alpha);
   }
   double search_by_2pt_quad_interpo() {
     forward_backward();
@@ -226,12 +227,12 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
       alpha_pre = alpha;
       alpha -= alpha_delta;
     }
-    return std::max(0.0, alpha);
+    return std::max(eps_, alpha);
   }
   double search_by_3pt_quad_interpo() {
     forward_backward();
     double alpha_mid = 0.5 * (alpha_high_ + alpha_low_);
-    return std::max(0.0, 0.5 * (alpha_mid + alpha_low_) + 0.5 * (obj_fun_(var_ + alpha_low_ * dir_) - obj_fun_(var_ + alpha_mid * dir_)) * (alpha_mid - alpha_high_) * (alpha_high_ - alpha_low_) / ((alpha_mid - alpha_high_) * obj_fun_(var_ + alpha_low_ * dir_) + (alpha_high_ - alpha_low_) * obj_fun_(var_ + alpha_mid * dir_) + (alpha_low_ - alpha_mid) * obj_fun_(var_ + alpha_high_ * dir_)));
+    return std::max(eps_, 0.5 * (alpha_mid + alpha_low_) + 0.5 * (obj_fun_(var_ + alpha_low_ * dir_) - obj_fun_(var_ + alpha_mid * dir_)) * (alpha_mid - alpha_high_) * (alpha_high_ - alpha_low_) / ((alpha_mid - alpha_high_) * obj_fun_(var_ + alpha_low_ * dir_) + (alpha_high_ - alpha_low_) * obj_fun_(var_ + alpha_mid * dir_) + (alpha_low_ - alpha_mid) * obj_fun_(var_ + alpha_high_ * dir_)));
   }
   double search_by_2pt_cubic_interpo() {
     forward_backward();
@@ -253,7 +254,7 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
         alpha_low_  = alpha;
       }
     }
-    return std::max(0.0, alpha);
+    return std::max(eps_, alpha);
   }
   protected:
   double epsilon_    = 1e-4;
@@ -308,7 +309,7 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
       } else if (obj_alpha < obj_zero + sigma_ * jac_zero * alpha){
         alpha_low_ = alpha;
       }
-      alpha = std::max(0.0, 0.5 * (alpha_low_ + alpha_high_));
+      alpha = std::max(eps_, 0.5 * (alpha_low_ + alpha_high_));
     }
     return alpha;
   }
@@ -331,7 +332,7 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
       obj_alpha = obj_fun_(var_ + alpha * dir_);
       jac_alpha = dir_.dot(jac_fun_(var_ + alpha * dir_));
     }
-    return std::max(0.0, alpha);
+    return std::max(eps_, alpha);
   }
   double search_by_strong_wolfe_powell() {
     forward_backward();
@@ -352,7 +353,7 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
       obj_alpha = obj_fun_(var_ + alpha * dir_);
       jac_alpha = dir_.dot(jac_fun_(var_ + alpha * dir_));
     }
-    return std::max(0.0, alpha);
+    return std::max(eps_, alpha);
   }
   protected:
   double rho_        = 0.1;
