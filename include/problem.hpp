@@ -77,7 +77,11 @@ class QP_w_Constraint : public Base_Problem {
     return eq_value;
   }
   Eigen::VectorXd ieq_cons(Eigen::VectorXd _var) override {
-    return Eigen::VectorXd::Zero(1);
+    Eigen::VectorXd G(2);
+    G << 1.0, -1.0;
+    Eigen::VectorXd ieq_value(1);
+    ieq_value << G.dot(_var) - 1.0;
+    return ieq_value;
   }
   Eigen::MatrixXd jac_eq_cons(Eigen::VectorXd _var) override  {
     Eigen::MatrixXd jac_eq_value(2,1);
@@ -85,7 +89,9 @@ class QP_w_Constraint : public Base_Problem {
     return jac_eq_value;
   }
   Eigen::MatrixXd jac_ieq_cons(Eigen::VectorXd _var) override {
-    return Eigen::MatrixXd::Zero(2,1);
+    Eigen::MatrixXd jac_ieq_value(2,1);
+    jac_ieq_value << 1.0, -1.0;
+    return jac_ieq_value;
   }
   protected:
   Eigen::MatrixXd weight_mat_;

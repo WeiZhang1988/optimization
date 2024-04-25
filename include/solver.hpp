@@ -336,6 +336,7 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
                               double _beta1 = 0.3, \
                               double _beta2 = 0.6, \
                               double _rho   = 5.0, \
+                              int _max_iter_num = 1000, \
                               ObjFun _obj_fun = nullptr, \
                               JacFun _jac_fun = nullptr, \
                               HesFun _hes_fun = nullptr, \
@@ -359,7 +360,8 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
                               enta_(_enta),
                               beta1_(_beta1),
                               beta2_(_beta2),
-                              rho_(_rho){
+                              rho_(_rho),
+                              max_iter_num_(_max_iter_num){
                                 assert(sigma_>0 && \
                                        epsilon_>0 && \
                                        enta_>0 && \
@@ -394,7 +396,15 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
             jac_ieq_cons_value * (mus_ + sigma_ * (ieq_cons_(_var) + ieq_rlx_value)));
   }
   Eigen::MatrixXd hes_augmented_lagrange(Eigen::VectorXd _var) {
-    return hes_fun_(_var) + jac_eq_cons_(_var) * sigma_ * jac_eq_cons_(_var).transpose();
+    Eigen::VectorXd ieq_rlx_value = -((mus_ / sigma_) + ieq_cons_(_var));
+    Eigen::MatrixXd jac_ieq_cons_value = jac_ieq_cons_(_var);
+    for (int i = 0; i < ieq_rlx_value.size(); i++) {
+      if (ieq_rlx_value(i) < 0.0) {
+        jac_ieq_cons_value.col(i).setZero();
+      }
+    }
+    ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
+    return hes_fun_(_var) + jac_eq_cons_(_var) * sigma_ * jac_eq_cons_(_var).transpose() + jac_ieq_cons_value * sigma_ * jac_ieq_cons_value.transpose();
   }
   virtual void init_for_solve() {
     sptr_line_searcher_->set_obj_fun(std::bind(&Augmented_Lagrangian_Solver::augmented_lagrange,this,std::placeholders::_1));
@@ -411,17 +421,21 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
       }
     }
     ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
+    int iter_num=0;
     do {
       jac_lag_ = (jac_fun_(var_) + \
                   (jac_eq_cons_(var_) * (lambdas_ + sigma_ * eq_cons_(var_))) + \
                   jac_ieq_cons_value * (mus_ + sigma_ * (ieq_cons_(var_) + ieq_rlx_value)));
-      Eigen::MatrixXd hes_lag_ = hes_fun_(var_) + jac_eq_cons_(var_) * sigma_ * jac_eq_cons_(var_).transpose();
+      Eigen::MatrixXd hes_lag_ = hes_fun_(var_) + jac_eq_cons_(var_) * sigma_ * jac_eq_cons_(var_).transpose()+ jac_ieq_cons_value * sigma_ * jac_ieq_cons_value.transpose();
       dir_ = hes_lag_.template bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(-jac_lag_);
       sptr_line_searcher_->set_var(var_);
       sptr_line_searcher_->set_dir(dir_);
       alpha_ = sptr_line_searcher_->search();
+      // std::cout<<"var_ "<<var_<<std::endl;
+      // std::cout<<"alpha_ "<<alpha_<<std::endl;
       var_ += alpha_ * dir_;
-    } while (jac_lag_.norm()>entk_ /*&& std::abs(eq_cons_(var_).norm())>entk_ && ieq_cons_(var_).norm()>entk_*/);
+      iter_num++;
+    } while (jac_lag_.norm()>entk_ && std::abs(eq_cons_(var_).norm())>entk_ && ieq_cons_(var_).norm()>entk_ && iter_num<max_iter_num_);
     cons_violation_ = std::sqrt(eq_cons_(var_).squaredNorm() + (ieq_cons_(var_).cwiseMax(-(mus_ / sigma_))).squaredNorm());
     if (cons_violation_ < epsk_){
       if (cons_violation_ < epsilon_ && jac_lag_.norm() < enta_) {
@@ -450,6 +464,53 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
   double sigma_, enta_, epsk_, entk_, beta1_, beta2_, rho_;
   double cons_violation_;
   bool ending_cond_ = false;
+  int max_iter_num_;
 };
+// class LogBarrier_Solver : public Base_Solver{
+//   public:
+//   LogBarrier_Solver(Eigen::VectorXd _var, \
+//                double _epsilon, \
+//                int  _storage_size, \
+//                std::shared_ptr<Base_Line_Searcher> _sptr_line_searcher, \
+//                ObjFun _obj_fun = nullptr, \
+//                JacFun _jac_fun = nullptr, \
+//                HesFun _hes_fun = nullptr) :
+//                Base_Solver(_var, \
+//                            _epsilon, \
+//                            _sptr_line_searcher, \
+//                            _obj_fun, \
+//                            _jac_fun, \
+//                            _hes_fun),
+//                storage_size_(_storage_size) {
+//                  sptr_stored_dirs_ = std::make_shared<FixedQueue<Eigen::VectorXd>>(storage_size_);
+//                  sptr_stored_ys_   = std::make_shared<FixedQueue<Eigen::VectorXd>>(storage_size_);
+//                }
+//   Eigen::VectorXd solve() override {
+//     sptr_line_searcher_->set_var(var_);
+//     sptr_line_searcher_->set_dir(dir_);
+//     alpha_ = sptr_line_searcher_->search();
+//     Eigen::VectorXd jac = jac_fun_(var_);
+//     Eigen::MatrixXd hes = Eigen::MatrixXd::Identity(var_.size(),var_.size());
+//     dir_ = hes.template bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(-jac);
+//     Eigen::VectorXd y = jac_fun_(var_ + alpha_ * dir_) - jac;
+//     sptr_stored_dirs_->push(dir_);
+//     sptr_stored_ys_->push(y);
+//     assert(sptr_stored_dirs_->size() == sptr_stored_ys_->size());
+//     auto dir_iter = sptr_stored_dirs_->cbegin();
+//     auto y_iter   = sptr_stored_ys_->cbegin();
+//     for (int i=0; i<sptr_stored_dirs_->size(); i++){
+//       hes += ((*y_iter) * (*y_iter).transpose()) / ((*y_iter).transpose() * (*dir_iter)) - \
+//              (hes * (*dir_iter) * (*dir_iter).transpose() * hes) / ((*dir_iter).transpose() * hes * (*dir_iter));
+//       dir_iter++;
+//       y_iter++;
+//     }
+//     var_ += alpha_ * dir_;
+//     return var_;
+//   }
+//   protected:
+//   int storage_size_;
+//   std::shared_ptr<FixedQueue<Eigen::VectorXd>> sptr_stored_dirs_;
+//   std::shared_ptr<FixedQueue<Eigen::VectorXd>> sptr_stored_ys_;
+// };
 } //namespace opt
 #endif //SOLVER_HPP

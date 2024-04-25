@@ -11,12 +11,12 @@ int main(int argc, char **argv) {
   int max_iter_num = 10000;
   double epsilon = 1e-10;
   int var_dim = 2;
-  Eigen::VectorXd var = Eigen::VectorXd::Random(var_dim) * 1;
+  Eigen::VectorXd var = Eigen::VectorXd::Random(var_dim) * 10;
   Eigen::VectorXd target = Eigen::VectorXd::Random(var_dim);
   Eigen::MatrixXd weight_mat = Eigen::MatrixXd::Identity(var_dim,var_dim);
   Eigen::VectorXd coe_vec    = Eigen::VectorXd::Zero(var_dim);
   std::shared_ptr<QP_wo_Constraint> sptr_problem = std::make_shared<QP_wo_Constraint>(var,target,weight_mat,coe_vec);
-  std::shared_ptr<InExact_Line_Searcher> sptr_line_searcher = std::make_shared<InExact_Line_Searcher>(var, var);
+  std::shared_ptr<Exact_Line_Searcher> sptr_line_searcher = std::make_shared<Exact_Line_Searcher>(var, var);
   /*----------------------*/
   std::shared_ptr<Gradient_Descent_Solver> sptr_gd_solver = std::make_shared<Gradient_Descent_Solver>(var,epsilon,sptr_line_searcher);
   std::shared_ptr<Optimizer> sptr_optimizer = std::make_shared<Optimizer>(sptr_problem,sptr_gd_solver,epsilon,max_iter_num);
@@ -77,5 +77,6 @@ int main(int argc, char **argv) {
   std::cout<<"tarT "<<target.transpose()<<std::endl;
   std::cout<<"resT "<<res.transpose()<<std::endl;
   std::cout<<"eq_cons "<<sptr_problem_cons->eq_cons(res).transpose()<<std::endl;
+  std::cout<<"ieq_cons "<<sptr_problem_cons->ieq_cons(res).transpose()<<std::endl;
   return 0;
 }
