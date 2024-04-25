@@ -77,6 +77,5 @@ int main(int argc, char **argv) {
   std::cout<<"tarT "<<target.transpose()<<std::endl;
   std::cout<<"resT "<<res.transpose()<<std::endl;
   std::cout<<"eq_cons "<<sptr_problem_cons->eq_cons(res).transpose()<<std::endl;
-  std::cout<<"eq_cons err "<<sptr_problem_cons->eq_cons(res-target).transpose()<<std::endl;
   return 0;
 }

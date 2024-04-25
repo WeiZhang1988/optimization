@@ -65,8 +65,9 @@ class Base_Solver{
   void set_jac_ieq_cons(JacCons _jac_ieq_cons) {
     jac_ieq_cons_ = _jac_ieq_cons;
   }
-  void init_for_solve() {
+  virtual void init_for_solve() {
     dir_ = -jac_fun_(var_);
+    sptr_line_searcher_->forward_backward();
   }
   virtual void update_params() {}
   virtual bool ending_condition() {
@@ -370,13 +371,8 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
                                        rho_>1);
                                 entk_ = 1 / sigma_;
                                 epsk_ = std::pow(sigma_, -beta1_);
-                                auto tmp = std::bind(&Augmented_Lagrangian_Solver::augmented_lagrange,this,std::placeholders::_1);
-                                sptr_line_searcher_->set_obj_fun(tmp);
-                                sptr_line_searcher_->set_jac_fun(std::bind(&Augmented_Lagrangian_Solver::jac_augmented_lagrange,this,std::placeholders::_1));
-                                sptr_line_searcher_->set_hes_fun(std::bind(&Augmented_Lagrangian_Solver::hes_augmented_lagrange,this,std::placeholders::_1));
                               }
   double augmented_lagrange(Eigen::VectorXd _var) {
-    std::cout<<"enter"<<std::endl;
     Eigen::VectorXd ieq_items_1 = (mus_ / sigma_) + ieq_cons_(_var);
     ieq_items_1.unaryExpr([](double value) { return (value > 0.0) ? value * value : 0.0; });
     Eigen::VectorXd ieq_items_2 = (mus_ / sigma_);
@@ -400,6 +396,12 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
   Eigen::MatrixXd hes_augmented_lagrange(Eigen::VectorXd _var) {
     return hes_fun_(_var) + jac_eq_cons_(_var) * sigma_ * jac_eq_cons_(_var).transpose();
   }
+  virtual void init_for_solve() {
+    sptr_line_searcher_->set_obj_fun(std::bind(&Augmented_Lagrangian_Solver::augmented_lagrange,this,std::placeholders::_1));
+    sptr_line_searcher_->set_jac_fun(std::bind(&Augmented_Lagrangian_Solver::jac_augmented_lagrange,this,std::placeholders::_1));
+    sptr_line_searcher_->set_hes_fun(std::bind(&Augmented_Lagrangian_Solver::hes_augmented_lagrange,this,std::placeholders::_1));
+    sptr_line_searcher_->forward_backward();
+  }
   Eigen::VectorXd solve() override {
     Eigen::VectorXd ieq_rlx_value = -((mus_ / sigma_) + ieq_cons_(var_));
     Eigen::MatrixXd jac_ieq_cons_value = jac_ieq_cons_(var_);
@@ -411,8 +413,8 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
     ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
     do {
       jac_lag_ = (jac_fun_(var_) + \
-                (jac_eq_cons_(var_) * (lambdas_ + sigma_ * eq_cons_(var_))) + \
-                jac_ieq_cons_value * (mus_ + sigma_ * (ieq_cons_(var_) + ieq_rlx_value)));
+                  (jac_eq_cons_(var_) * (lambdas_ + sigma_ * eq_cons_(var_))) + \
+                  jac_ieq_cons_value * (mus_ + sigma_ * (ieq_cons_(var_) + ieq_rlx_value)));
       Eigen::MatrixXd hes_lag_ = hes_fun_(var_) + jac_eq_cons_(var_) * sigma_ * jac_eq_cons_(var_).transpose();
       dir_ = hes_lag_.template bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(-jac_lag_);
       sptr_line_searcher_->set_var(var_);

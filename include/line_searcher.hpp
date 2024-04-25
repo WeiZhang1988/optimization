@@ -43,8 +43,6 @@ class Base_Line_Searcher{
   void set_hes_fun(HesFun _hes_fun) {
     hes_fun_ = _hes_fun;
   }
-  virtual double search() = 0;
-  protected:
   void forward_backward() {
     if (std::abs(obj_fun_(var_ + alpha_init_ * dir_) - obj_fun_(var_ + (alpha_init_ + stepsize_) * dir_)) < 1e-6){
       alpha_low_  = alpha_init_;
@@ -54,7 +52,7 @@ class Base_Line_Searcher{
       while (obj_fun_(var_ + (alpha_init_ - multiplier_ * stepsize_) * dir_) < obj_fun_(var_ + alpha_init_ * dir_)){
         multiplier_ += 1.0;
       }
-      alpha_low_  = alpha_init_ - multiplier_ * stepsize_;
+      alpha_low_  = std::max(eps_,alpha_init_ - multiplier_ * stepsize_);
     } else {
       alpha_low_  = alpha_init_ + stepsize_;
       do {
@@ -63,6 +61,8 @@ class Base_Line_Searcher{
       alpha_high_ = alpha_init_ + multiplier_ * stepsize_;
     }
   }
+  virtual double search() = 0;
+  protected:
   Eigen::VectorXd var_;
   Eigen::VectorXd dir_;
   ObjFun obj_fun_;
@@ -125,7 +125,6 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
     }
   }
   double search_by_bisection() {
-    forward_backward();
     double obj = obj_fun_(var_);
     Eigen::VectorXd jac = jac_fun_(var_);
     double alpha_mid = 0.5 * (alpha_low_ + alpha_high_);
@@ -142,7 +141,6 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
     return std::max(eps_, 0.5 * (alpha_low_ + alpha_high_));
   }
   double search_by_golden_section() {
-    forward_backward();
     double golden_ratio   = 0.5 * (std::sqrt(5.0) - 1.0);
     double alpha_low_try  = alpha_high_ - (alpha_high_ - alpha_low_) * golden_ratio;
     double alpha_high_try = alpha_low_  + (alpha_high_ - alpha_low_) * golden_ratio;
@@ -162,7 +160,6 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
     return std::max(eps_, 0.5 * (alpha_low_ + alpha_high_));
   }
   double search_by_Fibonacci() {
-    forward_backward();
     std::vector<int> fib(max_iter_num_ + 1);
     fib[0] = 0;
     fib[1] = 1;
@@ -188,7 +185,6 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
     Eigen::VectorXd jac = jac_fun_(var_);
     Eigen::MatrixXd hes = hes_fun_(var_);
     Eigen::VectorXd dir = hes.ldlt().solve(-jac);
-    forward_backward();
     double alpha = alpha_high_;
     double alpha_delta = epsilon_ + alpha;
     int iter_num = 0;
@@ -200,7 +196,6 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
     return std::max(eps_, alpha);
   }
   double search_by_secant() {
-    forward_backward();
     Eigen::VectorXd jac = jac_fun_(var_);
     double alpha = alpha_high_;
     double alpha_pre = alpha;
@@ -215,7 +210,6 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
     return std::max(eps_, alpha);
   }
   double search_by_2pt_quad_interpo() {
-    forward_backward();
     Eigen::VectorXd jac = jac_fun_(var_);
     double alpha = alpha_high_;
     double alpha_pre = alpha + 1.0;
@@ -230,12 +224,10 @@ class Exact_Line_Searcher  : public Base_Line_Searcher{
     return std::max(eps_, alpha);
   }
   double search_by_3pt_quad_interpo() {
-    forward_backward();
     double alpha_mid = 0.5 * (alpha_high_ + alpha_low_);
     return std::max(eps_, 0.5 * (alpha_mid + alpha_low_) + 0.5 * (obj_fun_(var_ + alpha_low_ * dir_) - obj_fun_(var_ + alpha_mid * dir_)) * (alpha_mid - alpha_high_) * (alpha_high_ - alpha_low_) / ((alpha_mid - alpha_high_) * obj_fun_(var_ + alpha_low_ * dir_) + (alpha_high_ - alpha_low_) * obj_fun_(var_ + alpha_mid * dir_) + (alpha_low_ - alpha_mid) * obj_fun_(var_ + alpha_high_ * dir_)));
   }
   double search_by_2pt_cubic_interpo() {
-    forward_backward();
     int iter_num = 0;
     double alpha = alpha_high_;
     while (std::abs(dir_.dot(jac_fun_(var_ + alpha * dir_))) > epsilon_ && iter_num < max_iter_num_) {
@@ -296,25 +288,24 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
     }
   }
   double search_by_armijo_goldstein() {
-    forward_backward();
-    double alpha = 0.5 * (alpha_low_ + alpha_high_);
+    double alpha = std::max(eps_, 0.5 * (alpha_low_ + alpha_high_));
     double obj_zero  = obj_fun_(var_);
     double jac_zero  = dir_.dot(jac_fun_(var_));
     double obj_alpha = obj_fun_(var_ + alpha * dir_);
     int iter_num = 0;
-    while ((obj_alpha > obj_zero + rho_ * jac_zero * alpha || obj_alpha < obj_zero + sigma_ * jac_zero * alpha) && iter_num < max_iter_num_){
+    while ((obj_alpha < obj_zero + rho_ * jac_zero * alpha || obj_alpha > obj_zero + (1.0 - rho_) * jac_zero * alpha) && iter_num < max_iter_num_){
       iter_num++;
-      if (obj_alpha > obj_zero + rho_ * jac_zero * alpha){
-        alpha_high_  = alpha;
-      } else if (obj_alpha < obj_zero + sigma_ * jac_zero * alpha){
-        alpha_low_ = alpha;
+      obj_alpha = obj_fun_(var_ + alpha * dir_);
+      if (obj_alpha < obj_zero + rho_ * jac_zero * alpha){
+        alpha_low_  = alpha;
+      } else if (obj_alpha > obj_zero + (1.0 - rho_) * jac_zero * alpha){
+        alpha_high_ = alpha;
       }
       alpha = std::max(eps_, 0.5 * (alpha_low_ + alpha_high_));
     }
     return alpha;
   }
   double search_by_wolfe_powell() {
-    forward_backward();
     double alpha = 0.5 * (alpha_low_ + alpha_high_);
     double obj_zero  = obj_fun_(var_);
     double jac_zero  = dir_.dot(jac_fun_(var_));
@@ -335,7 +326,6 @@ class InExact_Line_Searcher : public Base_Line_Searcher {
     return std::max(eps_, alpha);
   }
   double search_by_strong_wolfe_powell() {
-    forward_backward();
     double alpha = 0.5 * (alpha_low_ + alpha_high_);
     double obj_zero  = obj_fun_(var_);
     double jac_zero  = dir_.dot(jac_fun_(var_));
