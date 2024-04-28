@@ -461,7 +461,7 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
   double cons_violation_;
   bool ending_cond_ = false;
 };
-class Barrier_Solver : public Base_Solver{
+/*class Barrier_Solver : public Base_Solver{
   public:
   Barrier_Solver(Eigen::VectorXd _var, \
                  double _epsilon, \
@@ -586,6 +586,6 @@ class Barrier_Solver : public Base_Solver{
   double sigma_, enta_, epsk_, entk_, beta1_, beta2_, rho_;
   double cons_violation_;
   bool ending_cond_ = false;
-};
+};*/
 } //namespace opt
 #endif //SOLVER_HPP
