@@ -27,6 +27,8 @@ class Base_Problem {
   virtual Eigen::VectorXd ieq_cons(Eigen::VectorXd _var){return Eigen::VectorXd::Zero(1);}
   virtual Eigen::MatrixXd jac_eq_cons(Eigen::VectorXd _var)  {return Eigen::MatrixXd::Identity(1,1);}
   virtual Eigen::MatrixXd jac_ieq_cons(Eigen::VectorXd _var) {return Eigen::MatrixXd::Identity(1,1);}
+  virtual std::vector<Eigen::MatrixXd> hes_eq_cons(Eigen::VectorXd _var)  {return std::vector<Eigen::MatrixXd>{Eigen::MatrixXd::Identity(1,1)};}
+  virtual std::vector<Eigen::MatrixXd> hes_ieq_cons(Eigen::VectorXd _var)  {return std::vector<Eigen::MatrixXd>{Eigen::MatrixXd::Identity(1,1)};}
   protected:
   Eigen::VectorXd var_;
   Eigen::VectorXd target_;

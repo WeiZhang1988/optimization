@@ -24,7 +24,9 @@ class Base_Solver{
               ConsFun _eq_cons      = nullptr, \
               ConsFun _ieq_cons     = nullptr, \
               JacCons _jac_eq_cons  = nullptr, \
-              JacCons _jac_ieq_cons = nullptr) : 
+              JacCons _jac_ieq_cons = nullptr,
+              HesCons _hes_eq_cons  = nullptr, \
+              HesCons _hes_ieq_cons = nullptr) : 
               var_(_var), 
               epsilon_(_epsilon), 
               sptr_line_searcher_(_sptr_line_searcher),
@@ -65,6 +67,12 @@ class Base_Solver{
   void set_jac_ieq_cons(JacCons _jac_ieq_cons) {
     jac_ieq_cons_ = _jac_ieq_cons;
   }
+  void set_hes_eq_cons(HesCons _hes_eq_cons) {
+    hes_eq_cons_ = _hes_eq_cons;
+  }
+  void set_hes_ieq_cons(HesCons _hes_ieq_cons) {
+    hes_ieq_cons_ = _hes_ieq_cons;
+  }
   virtual void init_for_solve() {
     dir_ = -jac_fun_(var_);
     sptr_line_searcher_->forward_backward();
@@ -83,6 +91,8 @@ class Base_Solver{
   ConsFun ieq_cons_;    
   JacCons jac_eq_cons_;
   JacCons jac_ieq_cons_;
+  HesCons hes_eq_cons_;
+  HesCons hes_ieq_cons_;
   double alpha_;
   double epsilon_ = 1e-10;
   std::shared_ptr<Base_Line_Searcher> sptr_line_searcher_;
@@ -461,89 +471,78 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
   double cons_violation_;
   bool ending_cond_ = false;
 };
-/*class Barrier_Solver : public Base_Solver{
+/*class Log_Barrier_Solver : public Base_Solver{
   public:
-  Barrier_Solver(Eigen::VectorXd _var, \
-                 double _epsilon, \
-                 std::shared_ptr<Base_Line_Searcher> _sptr_line_searcher, \
-                 Eigen::VectorXd _lambdas, \
-                 double _sigma = 2.0, \
-                 double _entk  = 1e-6, \
-                 double _rho   = 5.0, \
-                 ObjFun _obj_fun = nullptr, \
-                 JacFun _jac_fun = nullptr, \
-                 HesFun _hes_fun = nullptr, \
-                 ConsFun _eq_cons      = nullptr, \
-                 ConsFun _ieq_cons     = nullptr, \
-                 JacCons _jac_eq_cons  = nullptr, \
-                 JacCons _jac_ieq_cons = nullptr) :
-                 Base_Solver(_var, \
-                             _epsilon, \
-                             _sptr_line_searcher, \
-                             _obj_fun, \
-                             _jac_fun, \
-                             _hes_fun, \
-                             _eq_cons, \
-                             _ieq_cons, \
-                             _jac_eq_cons, \
-                             _jac_ieq_cons),  
-                 lambdas_(_lambdas),
-                 sigma_(_sigma),
-                 entk_(_entk),
-                 rho_(_rho){
-      assert(sigma_>0 && \
-             epsilon_>0 && \
-             entk_>0 && \
-             rho_>1);
-    }
-  double augmented_lagrange(Eigen::VectorXd _var) {
-    Eigen::VectorXd ieq_items_1 = (mus_ / sigma_) + ieq_cons_(_var);
-    ieq_items_1.unaryExpr([](double value) { return (value > 0.0) ? value * value : 0.0; });
-    Eigen::VectorXd ieq_items_2 = (mus_ / sigma_);
-    ieq_items_2.unaryExpr([](double value) { return (value > 0.0) ? value * value : 0.0; });
-    Eigen::VectorXd ieq_items = ieq_items_1 - ieq_items_2;
-    return obj_fun_(_var) + lambdas_.dot(eq_cons_(_var)) + 0.5 * sigma_ * eq_cons_(_var).squaredNorm() + 0.5 * sigma_ * ieq_items.sum();
+  Log_Barrier_Solver(Eigen::VectorXd _var, \
+                     double _epsilon, \
+                     std::shared_ptr<Base_Line_Searcher> _sptr_line_searcher, \
+                     Eigen::VectorXd _lambdas, \
+                     double _t = 1e-6, \
+                     double _mu  = 2.0, \
+                     ObjFun _obj_fun = nullptr, \
+                     JacFun _jac_fun = nullptr, \
+                     HesFun _hes_fun = nullptr, \
+                     ConsFun _eq_cons      = nullptr, \
+                     ConsFun _ieq_cons     = nullptr, \
+                     JacCons _jac_eq_cons  = nullptr, \
+                     JacCons _jac_ieq_cons = nullptr) :
+                     Base_Solver(_var, \
+                                 _epsilon, \
+                                 _sptr_line_searcher, \
+                                 _obj_fun, \
+                                 _jac_fun, \
+                                 _hes_fun, \
+                                 _eq_cons, \
+                                 _ieq_cons, \
+                                 _jac_eq_cons, \
+                                 _jac_ieq_cons),  
+                     lambdas_(_lambdas),
+                     t_(_t),
+                     mu_(_mu){
+    assert(t_>0 && mu_>1.0);
   }
-  Eigen::VectorXd jac_augmented_lagrange(Eigen::VectorXd _var) {
-    Eigen::VectorXd ieq_rlx_value = -((mus_ / sigma_) + ieq_cons_(_var));
-    Eigen::MatrixXd jac_ieq_cons_value = jac_ieq_cons_(_var);
-    for (int i = 0; i < ieq_rlx_value.size(); i++) {
-      if (ieq_rlx_value(i) < 0.0) {
-        jac_ieq_cons_value.col(i).setZero();
-      }
-    }
-    ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
-    return (jac_fun_(_var) + \
-            (jac_eq_cons_(_var) * (lambdas_ + sigma_ * eq_cons_(_var))) + \
-            jac_ieq_cons_value * (mus_ + sigma_ * (ieq_cons_(_var) + ieq_rlx_value)));
+  double lagrange(Eigen::VectorXd _var) {
+    Eigen::VectorXd ieq_items = - ieq_cons_(_var);
+    ieq_items.unaryExpr([](double value) { return -log(value); });
+    return t_ * obj_fun_(_var) + ieq_items.sum();
   }
-  Eigen::MatrixXd hes_augmented_lagrange(Eigen::VectorXd _var) {
-    Eigen::VectorXd ieq_rlx_value = -((mus_ / sigma_) + ieq_cons_(_var));
-    Eigen::MatrixXd jac_ieq_cons_value = jac_ieq_cons_(_var);
-    for (int i = 0; i < ieq_rlx_value.size(); i++) {
-      if (ieq_rlx_value(i) < 0.0) {
-        jac_ieq_cons_value.col(i).setZero();
-      }
+  Eigen::VectorXd jac_lagrange(Eigen::VectorXd _var) {
+    Eigen::MatrixXd jac_ieq_cons_items = jac_ieq_cons_(_var);
+    Eigen::VectorXd ieq_cons_values     = ieq_cons_(_var);
+    assert(jac_ieq_values.cols() == ieq_cons_values.size())
+    for (int i = 0; i < ieq_cons_values.size(); i++) {
+      jac_ieq_cons_items.col(i) /= ieq_cons_values(i);
     }
-    ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
-    return hes_fun_(_var) + jac_eq_cons_(_var) * sigma_ * jac_eq_cons_(_var).transpose() + jac_ieq_cons_value * sigma_ * jac_ieq_cons_value.transpose();
+    return (t_ * jac_fun_(_var) - jac_ieq_cons_items.sum());
+  }
+  Eigen::MatrixXd hes_lagrange(Eigen::VectorXd _var) {
+    Eigen::MatrixXd jac_ieq_cons_items = jac_ieq_cons_(_var);
+    Eigen::VectorXd ieq_cons_values    = ieq_cons_(_var);
+    assert(jac_ieq_values.cols() == ieq_cons_values.size())
+    Eigen::MatrixXd hes_tmp1 = Eigen::MatrixXd::Zeros(_var.size(),_var.size());
+    for (int i = 0; i < ieq_cons_values.size(); i++) {
+      Eigen::MatrixXd hes_tmp1 += jac_ieq_cons_items.col(i) * jac_ieq_cons_items.col(i).transpose() / std::sqrt(ieq_cons_values(i));
+    }
+    Eigen::MatrixXd hes_tmp2 = Eigen::MatrixXd::Zeros(_var.size(),_var.size());
+    for (int i = 0; i < ieq_cons_values.size(); i++) {
+      Eigen::MatrixXd hes_tmp2 += hes_ieq_cons_items[i] / ieq_cons_values(i);
+    }
+    return (t_ * hes_fun_(_var) + hes_tmp1 - hes_tmp2);
   }
   virtual void init_for_solve() {
-    sptr_line_searcher_->set_obj_fun(std::bind(&Augmented_Lagrangian_Solver::augmented_lagrange,this,std::placeholders::_1));
-    sptr_line_searcher_->set_jac_fun(std::bind(&Augmented_Lagrangian_Solver::jac_augmented_lagrange,this,std::placeholders::_1));
-    sptr_line_searcher_->set_hes_fun(std::bind(&Augmented_Lagrangian_Solver::hes_augmented_lagrange,this,std::placeholders::_1));
+    sptr_line_searcher_->set_obj_fun(std::bind(&Log_Barrier_Solver::lagrange,this,std::placeholders::_1));
+    sptr_line_searcher_->set_jac_fun(std::bind(&Log_Barrier_Solver::jac_lagrange,this,std::placeholders::_1));
+    sptr_line_searcher_->set_hes_fun(std::bind(&Log_Barrier_Solver::hes_lagrange,this,std::placeholders::_1));
     sptr_line_searcher_->forward_backward();
   }
+  Eigen::VectorXd rhs(Eigen::VectorXd _var, Eigen::VectorXd _nv) {
+    
+  }
   Eigen::VectorXd solve() override {
-    Eigen::VectorXd ieq_rlx_value = -((mus_ / sigma_) + ieq_cons_(var_));
-    Eigen::MatrixXd jac_ieq_cons_value = jac_ieq_cons_(var_);
-    for (int i = 0; i < ieq_rlx_value.size(); i++) {
-      if (ieq_rlx_value(i) < 0.0) {
-        jac_ieq_cons_value.col(i).setZero();
-      }
-    }
-    ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
     int iter_num=0;
+    Eigen::MatrixXd rhs;
+    jac_lagrange(_var) + jac_eq_cons_(_var) * nv;
+
     do {
       jac_lag_ = (jac_fun_(var_) + \
                   (jac_eq_cons_(var_) * (lambdas_ + sigma_ * eq_cons_(var_))) + \
@@ -553,38 +552,17 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
       sptr_line_searcher_->set_var(var_);
       sptr_line_searcher_->set_dir(dir_);
       alpha_ = sptr_line_searcher_->search();
-      // std::cout<<"var_ "<<var_<<std::endl;
-      // std::cout<<"alpha_ "<<alpha_<<std::endl;
       var_ += alpha_ * dir_;
       iter_num++;
-    } while (jac_lag_.norm() > entk_ && std::abs(eq_cons_(var_).norm()) > entk_ && ieq_cons_(var_).maxCoeff() > -std::abs(entk_));
-    cons_violation_ = std::sqrt(eq_cons_(var_).squaredNorm() + (ieq_cons_(var_).cwiseMax(-(mus_ / sigma_))).squaredNorm());
-    if (cons_violation_ < epsk_){
-      if (cons_violation_ < epsilon_ && jac_lag_.norm() < enta_) {
-        ending_cond_ = true;
-        return var_;
-      } else {
-        lambdas_ += sigma_ * eq_cons_(var_);
-        mus_ += sigma_ * ieq_cons_(var_);
-        mus_.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
-        entk_ /= sigma_;
-        epsk_ *= std::pow(sigma_,-beta2_);
-      }
-    } else {
-      sigma_ *= rho_;
-      entk_ = 1 / sigma_;
-      epsk_ = std::pow(sigma_, -beta1_);
-    }
-    ending_cond_ = false;
+    } while (iter_num < 1000);
     return var_;
   }
   bool ending_condition() {
     return ending_cond_;
   }
   protected:
-  Eigen::VectorXd jac_lag_, lambdas_, mus_;
-  double sigma_, enta_, epsk_, entk_, beta1_, beta2_, rho_;
-  double cons_violation_;
+  Eigen::VectorXd lambdas_;
+  double t_, mu_;
   bool ending_cond_ = false;
 };*/
 } //namespace opt

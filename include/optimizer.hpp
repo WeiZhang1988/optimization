@@ -30,6 +30,8 @@ class Optimizer{
     ieq_cons_     = std::bind(&Base_Problem::ieq_cons,sptr_problem_,std::placeholders::_1);  
     jac_eq_cons_  = std::bind(&Base_Problem::jac_eq_cons,sptr_problem_,std::placeholders::_1); 
     jac_ieq_cons_ = std::bind(&Base_Problem::jac_ieq_cons,sptr_problem_,std::placeholders::_1);
+    hes_eq_cons_  = std::bind(&Base_Problem::hes_eq_cons,sptr_problem_,std::placeholders::_1);
+    hes_ieq_cons_ = std::bind(&Base_Problem::hes_ieq_cons,sptr_problem_,std::placeholders::_1);
     _sptr_solver->set_obj_fun(obj_fun_);
     _sptr_solver->set_jac_fun(jac_fun_);
     _sptr_solver->set_hes_fun(hes_fun_);
@@ -37,6 +39,8 @@ class Optimizer{
     _sptr_solver->set_ieq_cons(ieq_cons_);
     _sptr_solver->set_jac_eq_cons(jac_eq_cons_);
     _sptr_solver->set_jac_ieq_cons(jac_ieq_cons_);
+    _sptr_solver->set_hes_eq_cons(hes_eq_cons_);
+    _sptr_solver->set_hes_ieq_cons(hes_ieq_cons_);
   }
   Eigen::VectorXd optimize() {
     sptr_solver_->init_for_solve();
@@ -72,6 +76,8 @@ class Optimizer{
   ConsFun ieq_cons_;    
   JacCons jac_eq_cons_;
   JacCons jac_ieq_cons_;
+  HesCons hes_eq_cons_;
+  HesCons hes_ieq_cons_;
 };
 } //namespace opt
 #endif //OPTIMIZER_HPP

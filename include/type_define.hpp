@@ -3,6 +3,7 @@
 
 #include <mutex>
 #include <queue>
+#include <vector>
 #include <algorithm>
 #include <functional>
 #include <Eigen/Dense>
@@ -13,6 +14,7 @@ typedef std::function<Eigen::VectorXd(Eigen::VectorXd)> JacFun;
 typedef std::function<Eigen::MatrixXd(Eigen::VectorXd)> HesFun;
 typedef std::function<Eigen::VectorXd(Eigen::VectorXd)> ConsFun;
 typedef std::function<Eigen::MatrixXd(Eigen::VectorXd)> JacCons;
+typedef std::function<std::vector<Eigen::MatrixXd>(Eigen::VectorXd)> HesCons;
 template<typename DataType>
 class FixedQueue : public std::deque<DataType> {
   public:
