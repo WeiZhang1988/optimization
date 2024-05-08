@@ -471,7 +471,7 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
   double cons_violation_;
   bool ending_cond_ = false;
 };
-/*class Log_Barrier_Solver : public Base_Solver{
+class Log_Barrier_Solver : public Base_Solver{
   public:
   Log_Barrier_Solver(Eigen::VectorXd _var, \
                      double _epsilon, \
@@ -503,31 +503,33 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
   }
   double lagrange(Eigen::VectorXd _var) {
     Eigen::VectorXd ieq_items = - ieq_cons_(_var);
-    ieq_items.unaryExpr([](double value) { return -log(value); });
+    ieq_items.unaryExpr([](double value) { return - std::log(value); });
     return t_ * obj_fun_(_var) + ieq_items.sum();
   }
   Eigen::VectorXd jac_lagrange(Eigen::VectorXd _var) {
-    Eigen::MatrixXd jac_ieq_cons_items = jac_ieq_cons_(_var);
-    Eigen::VectorXd ieq_cons_values     = ieq_cons_(_var);
-    assert(jac_ieq_values.cols() == ieq_cons_values.size())
+    Eigen::MatrixXd jac_ieq_cons_values = jac_ieq_cons_(_var);
+    Eigen::VectorXd ieq_cons_values    = ieq_cons_(_var);
+    assert(jac_ieq_cons_values.cols() == ieq_cons_values.size());
+    Eigen::VectorXd jac_ieq_cons_items = Eigen::VectorXd::Zero(_var.size());
     for (int i = 0; i < ieq_cons_values.size(); i++) {
-      jac_ieq_cons_items.col(i) /= ieq_cons_values(i);
+      jac_ieq_cons_items += jac_ieq_cons_values.col(i) / ieq_cons_values(i);
     }
-    return (t_ * jac_fun_(_var) - jac_ieq_cons_items.sum());
+    return (t_ * jac_fun_(_var) - jac_ieq_cons_items);
   }
   Eigen::MatrixXd hes_lagrange(Eigen::VectorXd _var) {
-    Eigen::MatrixXd jac_ieq_cons_items = jac_ieq_cons_(_var);
-    Eigen::VectorXd ieq_cons_values    = ieq_cons_(_var);
-    assert(jac_ieq_values.cols() == ieq_cons_values.size())
-    Eigen::MatrixXd hes_tmp1 = Eigen::MatrixXd::Zeros(_var.size(),_var.size());
+    Eigen::MatrixXd jac_ieq_cons_values              = jac_ieq_cons_(_var);
+    Eigen::VectorXd ieq_cons_values                 = ieq_cons_(_var);
+    std::vector<Eigen::MatrixXd> hes_ieq_cons_items = hes_ieq_cons_(_var);
+    assert(jac_ieq_cons_values.cols() == ieq_cons_values.size());
+    Eigen::MatrixXd hes_part1 = Eigen::MatrixXd::Zero(_var.size(),_var.size());
     for (int i = 0; i < ieq_cons_values.size(); i++) {
-      Eigen::MatrixXd hes_tmp1 += jac_ieq_cons_items.col(i) * jac_ieq_cons_items.col(i).transpose() / std::sqrt(ieq_cons_values(i));
+      hes_part1 += jac_ieq_cons_values.col(i) * jac_ieq_cons_values.col(i).transpose() / std::sqrt(ieq_cons_values(i));
     }
-    Eigen::MatrixXd hes_tmp2 = Eigen::MatrixXd::Zeros(_var.size(),_var.size());
+    Eigen::MatrixXd hes_part2 = Eigen::MatrixXd::Zero(_var.size(),_var.size());
     for (int i = 0; i < ieq_cons_values.size(); i++) {
-      Eigen::MatrixXd hes_tmp2 += hes_ieq_cons_items[i] / ieq_cons_values(i);
+      hes_part2 += hes_ieq_cons_items[i] / ieq_cons_values(i);
     }
-    return (t_ * hes_fun_(_var) + hes_tmp1 - hes_tmp2);
+    return (t_ * hes_fun_(_var) + hes_part1 - hes_part2);
   }
   virtual void init_for_solve() {
     sptr_line_searcher_->set_obj_fun(std::bind(&Log_Barrier_Solver::lagrange,this,std::placeholders::_1));
@@ -535,24 +537,33 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
     sptr_line_searcher_->set_hes_fun(std::bind(&Log_Barrier_Solver::hes_lagrange,this,std::placeholders::_1));
     sptr_line_searcher_->forward_backward();
   }
-  Eigen::VectorXd rhs(Eigen::VectorXd _var, Eigen::VectorXd _nv) {
-    
+  Eigen::VectorXd KKT_rhs(Eigen::VectorXd _var, Eigen::VectorXd _lambdas) {
+    Eigen::VectorXd upper = jac_lagrange(_var) + jac_eq_cons_(_var) * _lambdas;
+    Eigen::VectorXd lower = eq_cons_(_var);
+    Eigen::VectorXd ret;
+    ret<<upper,lower;
+    return -ret;
+  }
+  Eigen::MatrixXd KKT_matrix(Eigen::VectorXd _var, Eigen::VectorXd _lambdas) {
+    Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(_var.size()+_lambdas.size(),_var.size()+_lambdas.size());
+    Eigen::MatrixXd hes_eq_values = Eigen::MatrixXd::Zero(_var.size(),_var.size());
+    for (int i = 0; i < _lambdas.size(); i++) {
+      hes_eq_values += _lambdas(i) * hes_eq_cons_(_var)[i];
+    }
+    matrix.block(0, 0, _var.size(), _var.size()) = hes_lagrange(_var) + hes_eq_values;
+    matrix.block(0, _var.size(), _var.size(), _lambdas.size()) = jac_eq_cons_(_var);
+    matrix.block(_var.size(), 0, _lambdas.size(), _var.size()) = jac_eq_cons_(_var).transpose();
+    return matrix;
   }
   Eigen::VectorXd solve() override {
     int iter_num=0;
-    Eigen::MatrixXd rhs;
-    jac_lagrange(_var) + jac_eq_cons_(_var) * nv;
-
     do {
-      jac_lag_ = (jac_fun_(var_) + \
-                  (jac_eq_cons_(var_) * (lambdas_ + sigma_ * eq_cons_(var_))) + \
-                  jac_ieq_cons_value * (mus_ + sigma_ * (ieq_cons_(var_) + ieq_rlx_value)));
-      Eigen::MatrixXd hes_lag_ = hes_fun_(var_) + jac_eq_cons_(var_) * sigma_ * jac_eq_cons_(var_).transpose()+ jac_ieq_cons_value * sigma_ * jac_ieq_cons_value.transpose();
-      dir_ = hes_lag_.template bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(-jac_lag_);
+      dir_ = KKT_matrix(var_, lambdas_).template bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(KKT_rhs(var_, lambdas_));
       sptr_line_searcher_->set_var(var_);
       sptr_line_searcher_->set_dir(dir_);
       alpha_ = sptr_line_searcher_->search();
-      var_ += alpha_ * dir_;
+      var_      += alpha_ * dir_.head(var_.size());
+      lambdas_  += alpha_ * dir_.tail(lambdas_.size());
       iter_num++;
     } while (iter_num < 1000);
     return var_;
@@ -564,6 +575,6 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
   Eigen::VectorXd lambdas_;
   double t_, mu_;
   bool ending_cond_ = false;
-};*/
+};
 } //namespace opt
 #endif //SOLVER_HPP

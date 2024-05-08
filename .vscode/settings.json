@@ -74,6 +74,8 @@
     "*.inc": "cpp",
     "cassert": "cpp",
     "*.ipp": "cpp",
-    "alignedvector3": "cpp"
+    "alignedvector3": "cpp",
+    "*.expression": "cpp",
+    "fft": "cpp"
   }
 }
