@@ -384,9 +384,9 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
   }
   double augmented_lagrange(Eigen::VectorXd _var) {
     Eigen::VectorXd ieq_items_1 = (mus_ / sigma_) + ieq_cons_(_var);
-    ieq_items_1.unaryExpr([](double value) { return (value > 0.0) ? value * value : 0.0; });
+    ieq_items_1 = ieq_items_1.unaryExpr([](double value) { return (value > 0.0) ? value * value : 0.0; });
     Eigen::VectorXd ieq_items_2 = (mus_ / sigma_);
-    ieq_items_2.unaryExpr([](double value) { return (value > 0.0) ? value * value : 0.0; });
+    ieq_items_2 = ieq_items_2.unaryExpr([](double value) { return (value > 0.0) ? value * value : 0.0; });
     Eigen::VectorXd ieq_items = ieq_items_1 - ieq_items_2;
     return obj_fun_(_var) + lambdas_.dot(eq_cons_(_var)) + 0.5 * sigma_ * eq_cons_(_var).squaredNorm() + 0.5 * sigma_ * ieq_items.sum();
   }
@@ -398,7 +398,7 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
         jac_ieq_cons_value.col(i).setZero();
       }
     }
-    ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
+    ieq_rlx_value = ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
     return (jac_fun_(_var) + \
             (jac_eq_cons_(_var) * (lambdas_ + sigma_ * eq_cons_(_var))) + \
             jac_ieq_cons_value * (mus_ + sigma_ * (ieq_cons_(_var) + ieq_rlx_value)));
@@ -411,7 +411,7 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
         jac_ieq_cons_value.col(i).setZero();
       }
     }
-    ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
+    ieq_rlx_value = ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
     return hes_fun_(_var) + jac_eq_cons_(_var) * sigma_ * jac_eq_cons_(_var).transpose() + jac_ieq_cons_value * sigma_ * jac_ieq_cons_value.transpose();
   }
   virtual void init_for_solve() {
@@ -428,7 +428,7 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
         jac_ieq_cons_value.col(i).setZero();
       }
     }
-    ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
+    ieq_rlx_value = ieq_rlx_value.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
     int iter_num=0;
     do {
       jac_lag_ = (jac_fun_(var_) + \
@@ -450,7 +450,7 @@ class Augmented_Lagrangian_Solver : public Base_Solver{
       } else {
         lambdas_ += sigma_ * eq_cons_(var_);
         mus_ += sigma_ * ieq_cons_(var_);
-        mus_.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
+        mus_ = mus_.unaryExpr([](double value) { return (value > 0.0) ? value : 0.0; });
         entk_ /= sigma_;
         epsk_ *= std::pow(sigma_,-beta2_);
       }
@@ -503,7 +503,7 @@ class Log_Barrier_Solver : public Base_Solver{
   }
   double lagrange(Eigen::VectorXd _var) {
     Eigen::VectorXd ieq_items = - ieq_cons_(_var);
-    ieq_items.unaryExpr([](double value) { return - std::log(value); });
+    ieq_items = ieq_items.unaryExpr([](double value) { return - std::log(value); });
     return t_ * obj_fun_(_var) + ieq_items.sum();
   }
   Eigen::VectorXd jac_lagrange(Eigen::VectorXd _var) {
@@ -540,7 +540,7 @@ class Log_Barrier_Solver : public Base_Solver{
   Eigen::VectorXd KKT_rhs(Eigen::VectorXd _var, Eigen::VectorXd _lambdas) {
     Eigen::VectorXd upper = jac_lagrange(_var) + jac_eq_cons_(_var) * _lambdas;
     Eigen::VectorXd lower = eq_cons_(_var);
-    Eigen::VectorXd ret;
+    Eigen::VectorXd ret(upper.size()+lower.size());
     ret<<upper,lower;
     return -ret;
   }
@@ -561,11 +561,16 @@ class Log_Barrier_Solver : public Base_Solver{
       dir_ = KKT_matrix(var_, lambdas_).template bdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(KKT_rhs(var_, lambdas_));
       sptr_line_searcher_->set_var(var_);
       sptr_line_searcher_->set_dir(dir_);
+      if (ieq_cons_(var_).any()>=0) {
+        ending_cond_ = true;
+        return var_;
+      }
       alpha_ = sptr_line_searcher_->search();
       var_      += alpha_ * dir_.head(var_.size());
       lambdas_  += alpha_ * dir_.tail(lambdas_.size());
       iter_num++;
-    } while (iter_num < 1000);
+    } while (iter_num < 10);
+    t_ *= mu_;
     return var_;
   }
   bool ending_condition() {

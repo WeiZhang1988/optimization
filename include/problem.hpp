@@ -95,6 +95,20 @@ class QP_w_Constraint : public Base_Problem {
     jac_ieq_value << 1.0, -1.0;
     return jac_ieq_value;
   }
+  std::vector<Eigen::MatrixXd> hes_eq_cons(Eigen::VectorXd _var) override  {
+    std::vector<Eigen::MatrixXd> hes_eq_values;
+    Eigen::MatrixXd hes_eq_value(2,2);
+    hes_eq_value << 2.0, 0.0, 0.0, 0.0;
+    hes_eq_values.push_back(hes_eq_value);
+    return hes_eq_values;
+  }
+  std::vector<Eigen::MatrixXd> hes_ieq_cons(Eigen::VectorXd _var) override {
+    std::vector<Eigen::MatrixXd> hes_ieq_values;
+    Eigen::MatrixXd hes_ieq_value(2,2);
+    hes_ieq_value << 0.0, 0.0, 0.0, 0.0;
+    hes_ieq_values.push_back(hes_ieq_value);
+    return hes_ieq_values;
+  }
   protected:
   Eigen::MatrixXd weight_mat_;
   Eigen::VectorXd coe_vec_;

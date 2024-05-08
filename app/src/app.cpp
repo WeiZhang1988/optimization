@@ -78,5 +78,15 @@ int main(int argc, char **argv) {
   std::cout<<"resT "<<res.transpose()<<std::endl;
   std::cout<<"eq_cons "<<sptr_problem_cons->eq_cons(res).transpose()<<std::endl;
   std::cout<<"ieq_cons "<<sptr_problem_cons->ieq_cons(res).transpose()<<std::endl;
+  /*----------------------*/
+  std::shared_ptr<Log_Barrier_Solver> sptr_lb_solver = std::make_shared<Log_Barrier_Solver>(var,epsilon,sptr_line_searcher,Eigen::VectorXd::Ones(1));
+  sptr_optimizer = std::make_shared<Optimizer>(sptr_problem_cons,sptr_lb_solver,epsilon,max_iter_num);
+  res = sptr_optimizer->optimize();
+  std::cout<<"----------------------- LB *- iter -* "<< sptr_optimizer->get_iter_num()<<std::endl;
+  std::cout<<"varT "<<var.transpose()<<std::endl;
+  std::cout<<"tarT "<<target.transpose()<<std::endl;
+  std::cout<<"resT "<<res.transpose()<<std::endl;
+  std::cout<<"eq_cons "<<sptr_problem_cons->eq_cons(res).transpose()<<std::endl;
+  std::cout<<"ieq_cons "<<sptr_problem_cons->ieq_cons(res).transpose()<<std::endl;
   return 0;
 }
