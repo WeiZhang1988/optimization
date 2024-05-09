@@ -675,7 +675,7 @@ class Primal_Dual_Solver : public Base_Solver{
     Eigen::VectorXd var_lambdas_nvs(_var.size() + _lambdas.size() + _nvs.size());
     var_lambdas_nvs<<_var, _lambdas, _nvs;
     Eigen::VectorXd upper  = jac_lagrange(var_lambdas_nvs);
-    Eigen::VectorXd middle = _lambdas.asDiagonal() * ieq_cons_(_var) + 1/t_ * Eigen::MatrixXd::Ones(ieq_cons_(_var).size());
+    Eigen::VectorXd middle = _lambdas.asDiagonal() * ieq_cons_(_var) + 1/t_ * Eigen::VectorXd::Ones(ieq_cons_(_var).size());
     Eigen::VectorXd lower  = eq_cons_(_var);
     Eigen::VectorXd ret(var_lambdas_nvs.size());
     ret<<upper, middle, lower;
